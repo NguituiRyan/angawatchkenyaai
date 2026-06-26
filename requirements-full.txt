@@ -1,0 +1,23 @@
+# Angawatch — FULL local stack (real CrewAI agent, real HF vision, real Masumi SDK,
+# FastAPI ingest + MIP-003 service). Install for the local end-to-end demo:
+#   pip install -r requirements-full.txt
+-r requirements.txt
+
+# Agent layer (CrewAI uses litellm -> OpenRouter)
+crewai>=0.60
+
+# Vision: pre-trained PlantVillage tomato classifier (inference only)
+transformers>=4.40
+torch>=2.2
+pillow>=10.0
+
+# API surface: sensor ingest + MIP-003 agentic service
+fastapi>=0.110
+uvicorn>=0.29
+
+# Masumi (real preprod integration paths)
+masumi>=0.1            # github.com/masumi-network/pip-masumi
+# masumi-crewai      # optional CrewAI helper; uncomment if used directly
+
+# Local sensor transport (future ESP32 over MQTT)
+paho-mqtt>=2.0

@@ -1,0 +1,13 @@
+# Angawatch — CORE deps (deployed Streamlit Community Cloud build).
+# Kept intentionally light + reliable: NO torch/transformers/crewai here so the
+# cloud build is fast and never fails. Heavy/local-only deps -> requirements-full.txt
+neo4j>=5.20,<6
+python-dotenv>=1.0
+pydantic>=2.6
+pydantic-settings>=2.2
+streamlit>=1.36
+streamlit-agraph>=0.0.45
+pandas>=2.2
+openai>=1.30          # OpenRouter (OpenAI-compatible) narration in the cloud
+twilio>=9.0
+requests>=2.31

@@ -1,0 +1,29 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# Model / data caches
+hf_cache/
+*.safetensors
+*.bin
+*.pt
+
+# Local artifacts
+*.log
+.DS_Store
+Thumbs.db
+demo_output/

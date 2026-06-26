@@ -60,6 +60,16 @@ def assess(services, farmer_id: str):
     return CreditRiskAgent(services.settings).assess(services.store, farmer_id)
 
 
+def quick_score(services, farmer_id: str) -> dict:
+    """Deterministic score only (no LLM) for the hero finance-readiness gauge."""
+    from scoring.scorer import CreditScorer
+    try:
+        a = CreditScorer().score_farmer(services.store, farmer_id)
+        return {"score": a.overall_score, "grade": a.credit["grade"], "limit": a.credit["limit"]}
+    except Exception:  # noqa: BLE001
+        return {"score": 0, "grade": "—", "limit": "n/a"}
+
+
 @st.cache_resource(show_spinner=False)
 def _masumi_client(_settings):
     from masumi_integration.client import build_masumi_client

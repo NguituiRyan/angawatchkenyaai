@@ -1,14 +1,15 @@
-"""Angawatch lender dashboard (Streamlit) — dark, data-dense, premium UI.
+"""Angawatch lender dashboard (Streamlit) — light agri-SaaS UI.
 
   streamlit run dashboard/app.py
 
-A SACCO/MFI/insurer view: the farmer's verified Neo4j record, a live sensor feed
-with a staged blight event, an explainable credit assessment, and the Masumi
-round-trip. Every capability shows a LIVE/MOCK badge. Deployable to Streamlit Cloud.
+Greenhouse-monitoring + farm-to-finance: the farmer's verified Neo4j record, a
+live sensor feed with a staged blight event, an explainable credit assessment,
+and the Masumi round-trip. Every capability shows a LIVE/MOCK badge.
 """
 from __future__ import annotations
 
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -21,44 +22,72 @@ from dashboard.components.masumi_panel import render_masumi       # noqa: E402
 from dashboard.components.score_card import render_score_card     # noqa: E402
 from dashboard.state import (advisory_answer, assess, calm_ticks,  # noqa: E402
                              classify_leaf, get_services, inject_and_run,
-                             masumi_round_trip)
+                             masumi_round_trip, quick_score)
 from dashboard import theme                                       # noqa: E402
 
-st.set_page_config(page_title="Angawatch — farm-to-finance", page_icon="🌱", layout="wide")
+st.set_page_config(page_title="Angawatch — Greenhouse Monitoring", page_icon="🌱", layout="wide")
 theme.inject_theme()
 
 services = get_services()
 settings = services.settings
-FARMERS = {"Farmer-A": "gh-001", "Farmer-B": "gh-002", "Farmer-C": "gh-003"}
-
-# ---------------------------------------------------------------- header ----
-theme.hero({
-    "Graph": services.store.mode,
-    "Alerts": services.channel.mode,
-    "LLM": settings.llm_mode(),
-    "Masumi": settings.masumi_mode(),
-})
-flow_slot = st.container()   # guided progress tracker, filled at the end of the run
+FARMERS = {"Farmer-A": ("gh-001", "Nakuru"), "Farmer-B": ("gh-002", "Kiambu"),
+           "Farmer-C": ("gh-003", "Kajiado")}
 
 # --------------------------------------------------------------- sidebar ----
 with st.sidebar:
-    st.markdown(f"### {theme.icon('bank',18)} Lender view", unsafe_allow_html=True)
+    st.markdown(f"### {theme.icon('leaf',18)} Angawatch", unsafe_allow_html=True)
     farmer_id = st.selectbox("Farmer", list(FARMERS), index=0)
-    gh_id = FARMERS[farmer_id]
-    st.markdown(f"<span class='aw-hash'>greenhouse {gh_id}</span>", unsafe_allow_html=True)
+    gh_id, county = FARMERS[farmer_id]
+    st.markdown(f"<span class='aw-hash'>greenhouse {gh_id} · {county}</span>", unsafe_allow_html=True)
     st.divider()
-    st.markdown("**Demo flow**")
-    st.markdown("1. See the verified farm record\n2. Stage a blight event → early alert\n"
-                "3. Request the credit assessment\n4. Pay & audit via Masumi")
+    st.markdown(
+        f"**Live status**<br>"
+        f"{theme.pill(services.store.mode,'Graph · '+services.store.mode)}<br>"
+        f"{theme.pill(services.channel.mode,'Alerts · '+services.channel.mode)}<br>"
+        f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}<br>"
+        f"{theme.pill(settings.masumi_mode(),'Masumi · '+settings.masumi_mode())}",
+        unsafe_allow_html=True)
     st.divider()
     st.caption("Mocks are labeled 🟠. Nothing here hides a mock — that's the point.")
 
 if "warmed" not in st.session_state:
-    calm_ticks(services, gh_id, n=3)
+    calm_ticks(services, gh_id, n=4)
     st.session_state.warmed = True
 
+# ---------------------------------------------------------------- topbar ----
+alerts_n = len(services.store.list_alerts(gh_id, limit=20))
+theme.topbar("Greenhouse Monitoring",
+             "Angawatch — early crop-saving alerts + a verified farm record lenders price risk against",
+             datetime.now().strftime("%a %H:%M"), alerts=alerts_n)
+flow_slot = st.container()
+
+# ----------------------------------------------------- hero + readiness -----
+latest = (services.store.list_recent_readings(gh_id, limit=1) or [{}])[0]
+assessment_now = engine_risk = None
+try:
+    engine_risk = services.engine.evaluate(gh_id).top
+except Exception:  # noqa: BLE001
+    pass
+risk_level = engine_risk.level if engine_risk else "LOW"
+risk_kind = engine_risk.kind if engine_risk else "—"
+teaser = quick_score(services, farmer_id)
+
+hcol, gcol = st.columns([2, 1], gap="large")
+with hcol:
+    theme.hero_conditions(gh_id, county, latest, datetime.now().strftime("%a %d %b"),
+                          risk_level, risk_kind)
+with gcol:
+    st.markdown(
+        f'<div class="aw-card" style="height:100%"><div class="aw-section" style="margin-bottom:10px">'
+        f'<span class="ic">{theme.icon("bank",18)}</span><div><h3>Finance readiness</h3>'
+        f'<p>credit score from the farm record</p></div></div>'
+        f'{theme.gauge(teaser["score"], "Credit band " + teaser["grade"], teaser["limit"])}'
+        f'<p style="color:var(--muted);font-size:.82rem;margin-top:12px">A SACCO can hire the '
+        f'Credit-Risk Agent via Masumi to turn this record into an explainable, auditable score.</p>'
+        f'</div>', unsafe_allow_html=True)
+
 tab_farm, tab_credit, tab_advice = st.tabs(
-    ["Farm record & live feed", "Credit assessment (lender)", "Leaf scan & advisor"])
+    ["🌡️  Farm record & live feed", "🏦  Credit assessment", "🍃  Leaf scan & advisor"])
 
 # ============================================================ FARM TAB ======
 with tab_farm:
@@ -88,19 +117,19 @@ with tab_farm:
         if readings:
             df = pd.DataFrame(readings)[["ts", "humidity", "temp_c", "leaf_wetness_hr", "trap_count"]]
             df["ts"] = df["ts"].astype(str).str[11:16]
-            latest = readings[0]
+            lat = readings[0]
             theme.kpis([
-                {"label": "Humidity", "value": f"{latest.get('humidity'):.0f}%", "tone": "k-blue",
-                 "sub": "RH (≥90% favours blight)"},
-                {"label": "Air temp", "value": f"{latest.get('temp_c'):.0f}°C", "tone": "k-amber",
+                {"label": "Humidity", "value": f"{lat.get('humidity'):.0f}%", "icon": "drop",
+                 "sub": "RH ≥90% favours blight", "tone": "fill"},
+                {"label": "Air temp", "value": f"{lat.get('temp_c'):.0f}°C", "icon": "thermo",
                  "sub": "blight band 10–26°C"},
-                {"label": "Leaf wetness", "value": f"{latest.get('leaf_wetness_hr'):.0f}h",
-                 "tone": "k-brand", "sub": "trailing window"},
-                {"label": "Pest trap", "value": f"{latest.get('trap_count')}", "tone": "k-brand",
+                {"label": "Leaf wetness", "value": f"{lat.get('leaf_wetness_hr'):.0f}h", "icon": "sun",
+                 "sub": "trailing window"},
+                {"label": "Pest trap", "value": f"{lat.get('trap_count')}", "icon": "bug",
                  "sub": "males/trap/week"},
             ])
-            st.caption("Humidity (green) vs air temp (amber) over recent readings — "
-                       "sustained RH ≥90% in the 10–26°C band is what drives blight risk")
+            st.caption("Humidity (green) vs air temp (amber) over recent readings — sustained "
+                       "RH ≥90% in the 10–26°C band drives blight risk")
             theme.feed_chart(df.iloc[::-1])
 
         alerts = services.store.list_alerts(gh_id, limit=5)
@@ -152,9 +181,9 @@ with tab_advice:
             d = classify_leaf(services, target)
             st.markdown(theme.pill(d.mode), unsafe_allow_html=True)
             theme.kpis([
-                {"label": "Disease", "value": d.disease, "tone": "k-amber"},
-                {"label": "Severity", "value": d.severity.title(), "tone": "k-blue"},
-                {"label": "Health", "value": f"{d.health_score:.0f}/100", "tone": "k-brand"},
+                {"label": "Disease", "value": d.disease, "icon": "leaf", "tone": "fill"},
+                {"label": "Severity", "value": d.severity.title(), "icon": "alert"},
+                {"label": "Health", "value": f"{d.health_score:.0f}/100", "icon": "shield"},
             ])
             st.markdown(f"<span class='aw-hash'>confidence {d.confidence} · "
                         f"label {d.raw_label}</span>", unsafe_allow_html=True)

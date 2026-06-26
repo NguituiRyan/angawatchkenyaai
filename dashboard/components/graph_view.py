@@ -11,26 +11,26 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 GROUP = {
-    "Farmer": ("#22C55E", 30), "Greenhouse": ("#3B82F6", 26), "Season": ("#A78BFA", 20),
-    "Harvest": ("#F59E0B", 20), "Alert": ("#EF4444", 22), "Reading": ("#22D3EE", 16),
-    "Action": ("#84CC16", 18), "Cooperative": ("#818CF8", 22),
+    "Farmer": ("#54B435", 30), "Greenhouse": ("#3B82F6", 26), "Season": ("#8B5CF6", 20),
+    "Harvest": ("#E8A317", 20), "Alert": ("#E5484D", 22), "Reading": ("#0E9FB5", 16),
+    "Action": ("#6BB02E", 18), "Cooperative": ("#6366F1", 22),
 }
 
 _OPTIONS = json.dumps({
     "nodes": {
-        "shape": "dot", "borderWidth": 2, "borderWidthSelected": 3,
-        "color": {"border": "rgba(255,255,255,0.25)", "highlight": {"border": "#FFFFFF"}},
-        "shadow": {"enabled": True, "color": "rgba(0,0,0,0.45)", "size": 12, "x": 0, "y": 4},
-        "font": {"size": 16, "color": "#F4F8FF", "face": "Inter",
-                 "strokeWidth": 5, "strokeColor": "#070C16", "vadjust": -2},
+        "shape": "dot", "borderWidth": 3, "borderWidthSelected": 4,
+        "color": {"border": "#FFFFFF", "highlight": {"border": "#2E7321"}},
+        "shadow": {"enabled": True, "color": "rgba(46,80,40,0.20)", "size": 10, "x": 0, "y": 4},
+        "font": {"size": 16, "color": "#1B2A1F", "face": "Inter",
+                 "strokeWidth": 5, "strokeColor": "#FFFFFF", "vadjust": -2},
     },
     "edges": {
-        "color": {"color": "#46566f", "highlight": "#22C55E", "hover": "#7dd3fc", "opacity": 0.8},
-        "width": 1.5, "selectionWidth": 2,
+        "color": {"color": "#C7D2BC", "highlight": "#54B435", "hover": "#54B435", "opacity": 0.9},
+        "width": 1.5, "selectionWidth": 2.5,
         "smooth": {"type": "continuous", "roundness": 0.25},
         "arrows": {"to": {"enabled": True, "scaleFactor": 0.55}},
-        "font": {"size": 11, "color": "#A6B6CE", "face": "JetBrains Mono",
-                 "strokeWidth": 4, "strokeColor": "#070C16", "align": "middle"},
+        "font": {"size": 11, "color": "#6E7D70", "face": "JetBrains Mono",
+                 "strokeWidth": 5, "strokeColor": "#FFFFFF", "align": "middle"},
     },
     "physics": {
         "barnesHut": {"gravitationalConstant": -9500, "springLength": 135,
@@ -48,8 +48,8 @@ def _render_pyvis(data: dict) -> bool:
         from pyvis.network import Network
     except Exception:  # noqa: BLE001
         return False
-    net = Network(height="450px", width="100%", bgcolor="#0E1626",
-                  font_color="#F4F8FF", directed=True, cdn_resources="remote")
+    net = Network(height="450px", width="100%", bgcolor="#FFFFFF",
+                  font_color="#1B2A1F", directed=True, cdn_resources="remote")
     net.set_options(_OPTIONS)
     for n in data["nodes"]:
         color, size = GROUP.get(n["group"], ("#94A3B8", 16))
@@ -62,7 +62,7 @@ def _render_pyvis(data: dict) -> bool:
     except Exception:  # noqa: BLE001
         html = net.generate_html()
     # round the iframe corners to match our cards
-    html = html.replace("<body>", '<body style="margin:0;background:#0E1626;border-radius:16px">')
+    html = html.replace("<body>", '<body style="margin:0;background:#FFFFFF;border-radius:16px">')
     components.html(html, height=466, scrolling=False)
     return True
 
@@ -89,8 +89,8 @@ def render_graph(store, farmer_id: str) -> None:
 
 def _legend() -> None:
     chips = "".join(
-        f'<span class="aw-pill" style="background:rgba(255,255,255,.04);border-color:{c}55;'
-        f'color:var(--muted)"><span class="dot" style="background:{c};box-shadow:0 0 8px {c}"></span>'
-        f'{g}</span> ' for g, (c, _s) in GROUP.items())
+        f'<span class="aw-pill" style="background:#F4F7F0;border:1px solid #E7ECE0;'
+        f'color:#6E7D70"><span class="dot" style="background:{c}"></span>{g}</span> '
+        for g, (c, _s) in GROUP.items())
     st.markdown(f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-top:10px'>{chips}</div>",
                 unsafe_allow_html=True)

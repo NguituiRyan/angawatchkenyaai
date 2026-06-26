@@ -4,9 +4,9 @@ from __future__ import annotations
 import streamlit as st
 
 GROUP_COLORS = {
-    "Farmer": "#2e7d32", "Greenhouse": "#1565c0", "Season": "#6a1b9a",
-    "Harvest": "#ef6c00", "Alert": "#c62828", "Reading": "#00838f",
-    "Action": "#558b2f", "Cooperative": "#4527a0",
+    "Farmer": "#22C55E", "Greenhouse": "#3B82F6", "Season": "#A78BFA",
+    "Harvest": "#F59E0B", "Alert": "#EF4444", "Reading": "#22D3EE",
+    "Action": "#84CC16", "Cooperative": "#818CF8",
 }
 
 
@@ -22,12 +22,23 @@ def render_graph(store, farmer_id: str) -> None:
         st.json(data)
         return
 
-    nodes = [Node(id=n["id"], label=n["label"], size=16,
-                  color=GROUP_COLORS.get(n["group"], "#888")) for n in data["nodes"]]
-    edges = [Edge(source=e["source"], target=e["target"], label=e.get("label", ""))
-             for e in data["edges"]]
-    config = Config(width=720, height=430, directed=True, physics=True,
-                    nodeHighlightBehavior=True, collapsible=False)
+    nodes = [Node(id=n["id"], label=n["label"], size=15,
+                  color=GROUP_COLORS.get(n["group"], "#94A3B8")) for n in data["nodes"]]
+    edges = [Edge(source=e["source"], target=e["target"], label=e.get("label", ""),
+                  color="#3A4860") for e in data["edges"]]
+    config = Config(
+        width=720, height=430, directed=True, physics=True, nodeHighlightBehavior=True,
+        highlightColor="#22C55E", collapsible=False,
+        node={"labelProperty": "label", "font": {"color": "#E8EEF6", "size": 13,
+              "face": "Inter"}},
+        link={"labelProperty": "label", "renderLabel": True,
+              "font": {"color": "#9AA8BD", "size": 10}},
+    )
     agraph(nodes=nodes, edges=edges, config=config)
-    legend = "  ".join(f":{c[1:]}[●] {g}" if False else f"{g}" for g, c in GROUP_COLORS.items())
-    st.caption("Nodes: " + legend)
+
+    legend = "".join(
+        f'<span class="aw-pill" style="background:rgba(255,255,255,.04);border-color:{c}55;'
+        f'color:var(--muted)"><span class="dot" style="background:{c}"></span>{g}</span> '
+        for g, c in GROUP_COLORS.items())
+    st.markdown(f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-top:8px'>{legend}</div>",
+                unsafe_allow_html=True)

@@ -27,3 +27,4 @@ hf_cache/
 .DS_Store
 Thumbs.db
 demo_output/
+.claude/

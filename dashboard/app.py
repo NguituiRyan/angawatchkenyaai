@@ -1,10 +1,10 @@
-"""Angawatch lender dashboard (Streamlit).
+"""Angawatch lender dashboard (Streamlit) — dark, data-dense, premium UI.
 
   streamlit run dashboard/app.py
 
-A SACCO/MFI/insurer view: the farmer's verified Neo4j record, the live sensor
-feed with a staged blight event, and the explainable credit assessment. Every
-capability shows a LIVE/MOCK badge. Deployable to Streamlit Community Cloud.
+A SACCO/MFI/insurer view: the farmer's verified Neo4j record, a live sensor feed
+with a staged blight event, an explainable credit assessment, and the Masumi
+round-trip. Every capability shows a LIVE/MOCK badge. Deployable to Streamlit Cloud.
 """
 from __future__ import annotations
 
@@ -22,93 +22,96 @@ from dashboard.components.score_card import render_score_card     # noqa: E402
 from dashboard.state import (advisory_answer, assess, calm_ticks,  # noqa: E402
                              classify_leaf, get_services, inject_and_run,
                              masumi_round_trip)
-from logging_setup import badge                                   # noqa: E402
+from dashboard import theme                                       # noqa: E402
 
 st.set_page_config(page_title="Angawatch — farm-to-finance", page_icon="🌱", layout="wide")
+theme.inject_theme()
 
 services = get_services()
 settings = services.settings
-
 FARMERS = {"Farmer-A": "gh-001", "Farmer-B": "gh-002", "Farmer-C": "gh-003"}
 
 # ---------------------------------------------------------------- header ----
-st.title("🌱 Angawatch")
-st.caption("Early crop-saving alerts **and** a verified farm record lenders can price risk against.")
-
-badges = {
-    "Graph (Neo4j)": services.store.mode,
-    "Alerts (Twilio)": services.channel.mode,
-    "LLM narration": settings.llm_mode(),
-    "Masumi pay/audit": settings.masumi_mode(),
-}
-bcols = st.columns(len(badges))
-for col, (name, mode) in zip(bcols, badges.items()):
-    col.markdown(f"**{name}**<br>{badge(mode)} `{mode}`", unsafe_allow_html=True)
-st.divider()
+theme.hero({
+    "Graph": services.store.mode,
+    "Alerts": services.channel.mode,
+    "LLM": settings.llm_mode(),
+    "Masumi": settings.masumi_mode(),
+})
 
 # --------------------------------------------------------------- sidebar ----
 with st.sidebar:
-    st.header("Lender view")
+    st.markdown(f"### {theme.icon('bank',18)} Lender view", unsafe_allow_html=True)
     farmer_id = st.selectbox("Farmer", list(FARMERS), index=0)
     gh_id = FARMERS[farmer_id]
-    st.caption(f"Greenhouse: `{gh_id}`")
+    st.markdown(f"<span class='aw-hash'>greenhouse {gh_id}</span>", unsafe_allow_html=True)
     st.divider()
-    st.markdown("**Demo flow**\n\n1. See the verified farm record\n2. Stage a blight event → "
-                "early alert fires\n3. Request the credit assessment\n4. (Masumi) pay & audit")
+    st.markdown("**Demo flow**")
+    st.markdown("1. See the verified farm record\n2. Stage a blight event → early alert\n"
+                "3. Request the credit assessment\n4. Pay & audit via Masumi")
     st.divider()
     st.caption("Mocks are labeled 🟠. Nothing here hides a mock — that's the point.")
 
-# auto-stream a few calm readings on first load so the feed isn't empty
 if "warmed" not in st.session_state:
     calm_ticks(services, gh_id, n=3)
     st.session_state.warmed = True
 
 tab_farm, tab_credit, tab_advice = st.tabs(
-    ["🌡️ Farm record & live feed", "🏦 Credit assessment (lender)", "🍃 Leaf scan & advisor"])
+    ["Farm record & live feed", "Credit assessment (lender)", "Leaf scan & advisor"])
 
 # ============================================================ FARM TAB ======
 with tab_farm:
-    left, right = st.columns([3, 2])
+    left, right = st.columns([3, 2], gap="large")
     with left:
-        st.subheader("Verified farm record")
-        st.caption("Neo4j graph: readings → alerts (TRIGGERED_BY) → actions → harvests.")
+        theme.section("Verified farm record", "Neo4j graph: readings → alerts "
+                      "(TRIGGERED_BY) → actions → harvests.", "shield")
         render_graph(services.store, farmer_id)
 
     with right:
-        st.subheader("Live sensor feed")
+        theme.section("Live sensor feed", "Stage a blight event and watch the alert fire.",
+                      "activity")
         b1, b2 = st.columns(2)
-        if b1.button("➕ Stream calm readings", key="calm"):
+        if b1.button("Stream calm readings", key="calm", use_container_width=True):
             calm_ticks(services, gh_id, n=3)
-        if b2.button("🌫️ Inject blight event", type="primary", key="inject"):
+        if b2.button("Inject blight event", type="primary", key="inject",
+                     use_container_width=True):
             st.session_state.last_run = inject_and_run(services, gh_id)
 
         run = st.session_state.get("last_run")
         fired = next((r["alert"] for r in (run or []) if r.get("alert")), None)
         if fired:
-            lvl = fired["level"]
-            box = st.error if lvl == "HIGH" else st.warning
-            box(f"📲 {fired['delivery'].upper()} alert via {fired['provider']} — "
-                f"**[{lvl}] {fired['kind']}**\n\n{fired['message']}")
+            theme.alert_card(fired["level"], fired["kind"], fired["message"],
+                             fired["delivery"], fired["provider"])
 
-        readings = services.store.list_recent_readings(gh_id, limit=10)
+        readings = services.store.list_recent_readings(gh_id, limit=12)
         if readings:
             df = pd.DataFrame(readings)[["ts", "humidity", "temp_c", "leaf_wetness_hr", "trap_count"]]
             df["ts"] = df["ts"].astype(str).str[11:16]
-            st.dataframe(df.iloc[::-1], hide_index=True, use_container_width=True, height=240)
-            st.line_chart(df.set_index("ts")[["humidity", "temp_c"]])
+            latest = readings[0]
+            theme.kpis([
+                {"label": "Humidity", "value": f"{latest.get('humidity'):.0f}%", "tone": "k-blue",
+                 "sub": "RH (≥90% favours blight)"},
+                {"label": "Air temp", "value": f"{latest.get('temp_c'):.0f}°C", "tone": "k-amber",
+                 "sub": "blight band 10–26°C"},
+                {"label": "Leaf wetness", "value": f"{latest.get('leaf_wetness_hr'):.0f}h",
+                 "tone": "k-brand", "sub": "trailing window"},
+                {"label": "Pest trap", "value": f"{latest.get('trap_count')}", "tone": "k-brand",
+                 "sub": "males/trap/week"},
+            ])
+            st.line_chart(df.set_index("ts")[["humidity", "temp_c"]], height=200)
 
         alerts = services.store.list_alerts(gh_id, limit=5)
         if alerts:
             st.caption("Recent alerts on record")
             adf = pd.DataFrame(alerts)[["ts", "kind", "level", "delivery"]]
-            st.dataframe(adf, hide_index=True, use_container_width=True, height=160)
+            st.dataframe(adf, hide_index=True, use_container_width=True, height=150)
 
 # ========================================================== CREDIT TAB ======
 with tab_credit:
-    st.subheader(f"Credit-Risk assessment — {farmer_id}")
-    st.caption("Hire the Credit-Risk Agent: it reads the farmer's own subgraph and returns an "
-               "explainable, multi-factor recommendation. A loan officer approves.")
-    if st.button("📊 Request assessment", type="primary", key="assess"):
+    theme.section(f"Credit-Risk assessment — {farmer_id}",
+                  "Hire the agent: it reads the farmer's own subgraph and returns an "
+                  "explainable, multi-factor recommendation. A loan officer approves.", "bank")
+    if st.button("Request assessment", type="primary", key="assess"):
         with st.spinner("Agent reading the farm record and scoring…"):
             st.session_state.assessment = assess(services, farmer_id)
 
@@ -116,8 +119,9 @@ with tab_credit:
     if a and a.farmer_id == farmer_id:
         render_score_card(a)
         st.divider()
-        st.subheader("🔗 Hire & pay the agent via Masumi")
-        if st.button("💳 Pay & deliver via Masumi", type="primary", key="masumi_pay"):
+        theme.section("Hire & pay the agent via Masumi",
+                      "Discover → pay escrow (USDM/ADA) → deliver → on-chain audit.", "link")
+        if st.button("Pay & deliver via Masumi", type="primary", key="masumi_pay"):
             with st.spinner("Discovering agent → escrow payment → deliver → audit…"):
                 trip, mode = masumi_round_trip(services, a)
                 st.session_state.masumi = (trip, mode, farmer_id)
@@ -129,10 +133,10 @@ with tab_credit:
 
 # ========================================================== ADVICE TAB ======
 with tab_advice:
-    vcol, acol = st.columns(2)
+    vcol, acol = st.columns(2, gap="large")
     with vcol:
-        st.subheader("🍃 Leaf disease scan")
-        st.caption("Pre-trained PlantVillage tomato classifier (inference only).")
+        theme.section("Leaf disease scan", "Pre-trained PlantVillage tomato classifier "
+                      "(inference only).", "scan")
         up = st.file_uploader("Upload a tomato leaf photo", type=["jpg", "jpeg", "png"])
         use_sample = st.button("Use sample leaf image", key="sample_leaf")
         target = up
@@ -143,21 +147,25 @@ with tab_advice:
             if up is not None:
                 st.image(up, width=220)
             d = classify_leaf(services, target)
-            st.markdown(f"Result: {badge(d.mode)} `{d.mode}`")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Disease", d.disease)
-            c2.metric("Severity", d.severity)
-            c3.metric("Health", f"{d.health_score:.0f}/100")
-            st.caption(f"confidence {d.confidence} · raw label `{d.raw_label}`")
+            st.markdown(theme.pill(d.mode), unsafe_allow_html=True)
+            theme.kpis([
+                {"label": "Disease", "value": d.disease, "tone": "k-amber"},
+                {"label": "Severity", "value": d.severity.title(), "tone": "k-blue"},
+                {"label": "Health", "value": f"{d.health_score:.0f}/100", "tone": "k-brand"},
+            ])
+            st.markdown(f"<span class='aw-hash'>confidence {d.confidence} · "
+                        f"label {d.raw_label}</span>", unsafe_allow_html=True)
 
     with acol:
-        st.subheader("🤖 Ask the advisor (GraphRAG)")
-        st.caption(f"Grounded in **{farmer_id}**'s own farm record.")
+        theme.section("Ask the advisor (GraphRAG)", f"Grounded in {farmer_id}'s own farm record.",
+                      "spark")
         q = st.text_input("Your question", "Should I spray for blight tonight? Humidity is high.")
-        if st.button("Ask", key="ask"):
+        if st.button("Ask", key="ask", type="primary"):
             with st.spinner("Reading your record…"):
                 st.session_state.advice = advisory_answer(services, farmer_id, q)
         adv = st.session_state.get("advice")
         if adv:
-            st.markdown(f"{badge(adv['mode'])} `{adv['mode']}` · grounded on `{adv['grounded_on']}`")
-            st.write(adv["answer"])
+            st.markdown(theme.pill(adv["mode"], f"{adv['mode']} · grounded on {adv['grounded_on']}"),
+                        unsafe_allow_html=True)
+            st.markdown(f"<div class='aw-card' style='margin-top:10px'>{adv['answer']}</div>",
+                        unsafe_allow_html=True)

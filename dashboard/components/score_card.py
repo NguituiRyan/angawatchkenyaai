@@ -3,36 +3,38 @@ from __future__ import annotations
 
 import streamlit as st
 
-from logging_setup import badge
+from dashboard import theme
 
-_GRADE_COLOR = {"A": "green", "B": "blue", "C": "orange", "D": "red"}
+_GRADE_TONE = {"A": "k-green", "B": "k-blue", "C": "k-amber", "D": "k-amber"}
 
 
 def render_score_card(a) -> None:
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Credit score", f"{a.overall_score:.0f}/100")
-    c2.metric(f"Credit band {a.credit['grade']}", a.credit["limit"])
-    c3.metric("Insurance", a.insurance["grade"], a.insurance["note"])
+    tone = _GRADE_TONE.get(a.credit["grade"], "k-brand")
+    theme.kpis([
+        {"label": "Credit score", "value": f"{a.overall_score:.0f}", "sub": "of 100", "tone": tone},
+        {"label": f"Credit band {a.credit['grade']}", "value": a.credit["limit"].replace("up to ", ""),
+         "sub": "recommended limit", "tone": "k-brand"},
+        {"label": "Insurance", "value": a.insurance["grade"], "sub": a.insurance["note"], "tone": "k-blue"},
+        {"label": "Confidence", "value": a.confidence["level"].title(),
+         "sub": f"{a.confidence['value']} · {a.confidence['driver']}", "tone": "k-amber"},
+    ])
+    st.markdown(f"<div style='margin:8px 0 2px'>Narration {theme.pill(a.mode['narration'])} "
+                f"&nbsp;·&nbsp; scorer <span class='aw-pill live'><span class='dot'></span>"
+                f"DETERMINISTIC</span></div>", unsafe_allow_html=True)
 
-    grade = a.credit["grade"]
-    st.markdown(f"**Recommendation:** :{_GRADE_COLOR.get(grade,'gray')}[Band {grade}] · "
-                f"confidence **{a.confidence['level']}** ({a.confidence['value']}) — "
-                f"{a.confidence['driver']}")
-    st.caption(f"Narration: {badge(a.mode['narration'])}  ·  scorer: deterministic")
+    st.markdown("<br>", unsafe_allow_html=True)
+    theme.section("Why — contributing factors", "contribution = weight × sub-score", "activity")
+    bars = "".join(theme.factor_bar(f.label, f.sub_score, f.weight, f.contribution)
+                   for f in sorted(a.factors, key=lambda x: x.contribution, reverse=True))
+    st.markdown(f"<div class='aw-card'>{bars}</div>", unsafe_allow_html=True)
 
-    st.markdown("**Why — contributing factors** (contribution = weight × sub-score)")
-    for f in sorted(a.factors, key=lambda x: x.contribution, reverse=True):
-        left, right = st.columns([3, 1])
-        left.write(f"{f.label}")
-        left.progress(min(1.0, f.sub_score / 100))
-        right.write(f"**+{f.contribution:.1f}**")
-        right.caption(f"{f.sub_score:.0f}/100 ×{f.weight}")
+    st.markdown("<br>", unsafe_allow_html=True)
+    theme.section("Analyst narrative", ic="spark")
+    st.markdown(f"<div class='aw-card'>{a.narrative}</div>", unsafe_allow_html=True)
 
-    st.markdown("**Analyst narrative**")
-    st.write(a.narrative)
-
-    with st.expander("⚖️ Limits — human-in-the-loop (read before acting)", expanded=True):
+    with st.expander("⚖️  Limits — human-in-the-loop (read before acting)", expanded=True):
         for lim in a.limits:
-            st.write(f"• {lim}")
+            st.markdown(f"- {lim}")
 
-    st.caption(f"Reproducible result_hash (committed on-chain via Masumi): `{a.result_hash}`")
+    st.caption("Reproducible result_hash (committed on-chain via Masumi):")
+    st.markdown(f"<span class='aw-hash'>{a.result_hash}</span>", unsafe_allow_html=True)

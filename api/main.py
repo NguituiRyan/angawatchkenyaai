@@ -22,7 +22,8 @@ def create_app():
 
     app.include_router(create_ingest_router(services))
 
-    # Module 5: app.include_router(create_mip003_router(...))
+    from masumi_integration.service import create_mip003_router
+    app.include_router(create_mip003_router(services))
     return app
 
 

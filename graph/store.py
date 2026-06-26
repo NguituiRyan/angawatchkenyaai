@@ -204,6 +204,7 @@ class Neo4jGraphStore:
             "h.loss_pct AS loss_pct, h.grade_a_pct AS grade_a_pct ORDER BY s.index", fid=farmer_id)
         alerts = self._run(
             "MATCH (f:Farmer {id:$fid})-[:OWNS]->(:Greenhouse)-[:RAISED]->(a:Alert) "
+            "WHERE a.season_id IS NOT NULL "   # only resolved/historical alerts
             "OPTIONAL MATCH (a)-[:RESPONDED_WITH]->(act:Action) "
             "RETURN a.id AS id, a.kind AS kind, a.level AS level, a.ts AS ts, "
             "a.lead_time_hr AS lead_time_hr, count(act) > 0 AS actioned "

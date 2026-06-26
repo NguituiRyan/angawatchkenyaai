@@ -138,6 +138,8 @@ class InMemoryGraphStore:
         for a in self._t["alerts"]:
             if a.get("greenhouse_id") != gh_id:
                 continue
+            if not a.get("season_id"):
+                continue  # live/open alert (just fired) — not part of the verified history
             actioned = bool(self._alert_actions.get(a["id"]))
             action_count += 1 if actioned else 0
             alerts.append({

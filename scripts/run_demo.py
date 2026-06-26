@@ -105,8 +105,34 @@ def main() -> None:
     else:
         print("\n   (no HIGH alert this run — re-run; event regime is randomized)")
 
-    # 7-9. ASSESS / SCORE / AUDIT (Modules 3 & 5) ---------------------------
-    print(banner("7-9. CREDIT ASSESSMENT via MASUMI", ["wired in Modules 3 & 5"]))
+    # 7. ASSESS — lender hires the Credit-Risk Agent ------------------------
+    from agents.credit_crew import CreditRiskAgent
+    from logging_setup import tag
+    from masumi_integration.client import build_masumi_client
+
+    print(banner("7. LENDER HIRES THE CREDIT-RISK AGENT"))
+    assessment = CreditRiskAgent(settings).assess(services.store, settings.DEFAULT_FARMER_ID)
+
+    # 8. SCORE — explainable, multi-factor ----------------------------------
+    print(banner("8. EXPLAINABLE CREDIT SCORE",
+                 [f"score {assessment.overall_score}/100  ->  Credit {assessment.credit['grade']} "
+                  f"({assessment.credit['limit']})  |  Insurance {assessment.insurance['grade']}",
+                  f"confidence: {assessment.confidence['level']} ({assessment.confidence['value']})",
+                  f"narration: {tag(assessment.mode['narration'])} {assessment.mode['narration']}"]))
+    for f in sorted(assessment.factors, key=lambda x: x.contribution, reverse=True):
+        print(f"   {f.label:<40} {f.sub_score:>5.1f}/100  x{f.weight:<4} = +{f.contribution:.2f}")
+    print(f"\n   {assessment.narrative}")
+    print(f"\n   result_hash: {assessment.result_hash}")
+
+    # 9. AUDIT — pay + deliver + on-chain proof via Masumi ------------------
+    print(banner("9. MASUMI: PAY -> DELIVER -> ON-CHAIN AUDIT"))
+    client = build_masumi_client(settings)
+    trip = client.run_round_trip(assessment, store=services.store)
+    for s in trip["steps"]:
+        print(f"   {tag(s['mode'])} {s['label']:<42} {s['detail']}")
+        if s["tx_hash"]:
+            print(f"          tx {s['tx_hash'][:30]}…  {s['explorer_url'] or '(simulated)'}")
+    print(f"\n   Audit: {trip['audit'].status} (proof={trip['audit'].proof_kind})")
 
     # SUMMARY ----------------------------------------------------------------
     print(banner("SUMMARY — Live/Mock matrix"))

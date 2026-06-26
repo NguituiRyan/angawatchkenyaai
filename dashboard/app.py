@@ -19,8 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dashboard.components.graph_view import render_graph          # noqa: E402
 from dashboard.components.masumi_panel import render_masumi       # noqa: E402
 from dashboard.components.score_card import render_score_card     # noqa: E402
-from dashboard.state import (assess, calm_ticks, get_services,    # noqa: E402
-                             inject_and_run, masumi_round_trip)
+from dashboard.state import (advisory_answer, assess, calm_ticks,  # noqa: E402
+                             classify_leaf, get_services, inject_and_run,
+                             masumi_round_trip)
 from logging_setup import badge                                   # noqa: E402
 
 st.set_page_config(page_title="Angawatch — farm-to-finance", page_icon="🌱", layout="wide")
@@ -62,7 +63,8 @@ if "warmed" not in st.session_state:
     calm_ticks(services, gh_id, n=3)
     st.session_state.warmed = True
 
-tab_farm, tab_credit = st.tabs(["🌡️ Farm record & live feed", "🏦 Credit assessment (lender)"])
+tab_farm, tab_credit, tab_advice = st.tabs(
+    ["🌡️ Farm record & live feed", "🏦 Credit assessment (lender)", "🍃 Leaf scan & advisor"])
 
 # ============================================================ FARM TAB ======
 with tab_farm:
@@ -124,3 +126,38 @@ with tab_credit:
             render_masumi(m[0], m[1])
     else:
         st.info("Click **Request assessment** to run the Credit-Risk Agent for this farmer.")
+
+# ========================================================== ADVICE TAB ======
+with tab_advice:
+    vcol, acol = st.columns(2)
+    with vcol:
+        st.subheader("🍃 Leaf disease scan")
+        st.caption("Pre-trained PlantVillage tomato classifier (inference only).")
+        up = st.file_uploader("Upload a tomato leaf photo", type=["jpg", "jpeg", "png"])
+        use_sample = st.button("Use sample leaf image", key="sample_leaf")
+        target = up
+        if use_sample:
+            target = str(Path(__file__).resolve().parents[1] /
+                         "data" / "sample_leaf" / "tomato_leaf_blight.png")
+        if target is not None:
+            if up is not None:
+                st.image(up, width=220)
+            d = classify_leaf(services, target)
+            st.markdown(f"Result: {badge(d.mode)} `{d.mode}`")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Disease", d.disease)
+            c2.metric("Severity", d.severity)
+            c3.metric("Health", f"{d.health_score:.0f}/100")
+            st.caption(f"confidence {d.confidence} · raw label `{d.raw_label}`")
+
+    with acol:
+        st.subheader("🤖 Ask the advisor (GraphRAG)")
+        st.caption(f"Grounded in **{farmer_id}**'s own farm record.")
+        q = st.text_input("Your question", "Should I spray for blight tonight? Humidity is high.")
+        if st.button("Ask", key="ask"):
+            with st.spinner("Reading your record…"):
+                st.session_state.advice = advisory_answer(services, farmer_id, q)
+        adv = st.session_state.get("advice")
+        if adv:
+            st.markdown(f"{badge(adv['mode'])} `{adv['mode']}` · grounded on `{adv['grounded_on']}`")
+            st.write(adv["answer"])

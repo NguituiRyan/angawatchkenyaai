@@ -69,3 +69,22 @@ def _masumi_client(_settings):
 def masumi_round_trip(services, assessment):
     client = _masumi_client(services.settings)
     return client.run_round_trip(assessment, store=services.store), client.mode
+
+
+def classify_leaf(services, uploaded_or_path):
+    import os
+    import tempfile
+
+    from vision.classifier import classify
+    if hasattr(uploaded_or_path, "getvalue"):
+        suffix = os.path.splitext(getattr(uploaded_or_path, "name", "leaf.png"))[1] or ".png"
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        tmp.write(uploaded_or_path.getvalue())
+        tmp.close()
+        return classify(tmp.name, services.settings)
+    return classify(str(uploaded_or_path), services.settings)
+
+
+def advisory_answer(services, farmer_id: str, question: str) -> dict:
+    from agents.advisory_crew import answer
+    return answer(services.settings, services.store, farmer_id, question)

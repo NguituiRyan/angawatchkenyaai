@@ -31,3 +31,11 @@ def test_request_assessment_and_masumi():
     assert not at.exception, at.exception
     at.button(key="masumi_pay").click().run()
     assert not at.exception, at.exception
+
+
+def test_leaf_scan_and_advisor():
+    at = _run()
+    at.button(key="sample_leaf").click().run()
+    assert not at.exception, at.exception
+    at.button(key="ask").click().run()
+    assert not at.exception, at.exception

@@ -48,6 +48,10 @@ with st.sidebar:
         f"{theme.pill(settings.masumi_mode(),'Masumi · '+settings.masumi_mode())}",
         unsafe_allow_html=True)
     st.divider()
+    if st.button("↺ Reset demo", use_container_width=True, key="reset"):
+        for _k in ("last_run", "assessment", "masumi", "advice", "warmed"):
+            st.session_state.pop(_k, None)
+        st.rerun()
     st.caption("Mocks are labeled 🟠. Nothing here hides a mock — that's the point.")
 
 if "warmed" not in st.session_state:

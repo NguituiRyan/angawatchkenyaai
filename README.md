@@ -60,6 +60,10 @@ python -m vision.demo         # leaf classifier (mock; VISION_MODE=live for the 
 ```
 Run the tests: `python -m pytest -q` (16 tests — pure rules, scorer, dashboard smoke).
 
+**Going live for the demo:** `python scripts/preflight.py` connects to each service and reports
+LIVE/MOCK with the exact fix. See [`SUBMISSION_CHECKLIST.md`](SUBMISSION_CHECKLIST.md) (what to wire +
+artifacts to submit) and [`docs/masumi_golive.md`](docs/masumi_golive.md) (real on-chain proof).
+
 ## Deploy to Streamlit Community Cloud (the submission link)
 1. Push this repo to GitHub (done).
 2. On [share.streamlit.io](https://share.streamlit.io) → **New app** → pick this repo,

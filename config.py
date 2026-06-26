@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     PAYMENT_UNIT: str = "lovelace"
     MASUMI_PRERECORDED_TX: str | None = None
 
+    # --- Sokosumi (marketplace; +10 bonus) --------------------------------
+    SOKOSUMI_API_URL: str = "https://preprod.api.sokosumi.com"
+    SOKOSUMI_API_KEY: str | None = None
+    AGENT_API_URL: str = "https://angawatch.example/mip003"
+
     # --- Demo identity -----------------------------------------------------
     DEFAULT_FARMER_ID: str = "Farmer-A"
     DEFAULT_GREENHOUSE_ID: str = "gh-001"
@@ -89,6 +94,9 @@ class Settings(BaseSettings):
         if self.MASUMI_MODE == "real" and self.PAYMENT_API_KEY and self.PAYMENT_SERVICE_URL:
             return "real"
         return "mock"
+
+    def sokosumi_mode(self) -> str:
+        return "live" if self.SOKOSUMI_API_KEY else "mock"
 
 
 @lru_cache

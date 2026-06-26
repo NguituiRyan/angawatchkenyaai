@@ -28,7 +28,19 @@ def _load_pipeline(model_id: str):
     try:
         from transformers import pipeline
         log.info("%s loading vision model %s (first call may download)…", tag("live"), model_id)
-        _PIPELINE = pipeline("image-classification", model=model_id)
+        try:
+            _PIPELINE = pipeline("image-classification", model=model_id)
+        except Exception:
+            # Some PlantVillage repos omit image_processor_type; supply a compatible
+            # MobileNetV2 processor explicitly.
+            from transformers import (AutoImageProcessor,
+                                      AutoModelForImageClassification)
+            model = AutoModelForImageClassification.from_pretrained(model_id)
+            try:
+                proc = AutoImageProcessor.from_pretrained(model_id)
+            except Exception:  # noqa: BLE001
+                proc = AutoImageProcessor.from_pretrained("google/mobilenet_v2_1.0_224")
+            _PIPELINE = pipeline("image-classification", model=model, image_processor=proc)
     except Exception as exc:  # noqa: BLE001
         log.warning("%s vision model unavailable (%s) — using mock", tag("mock"), exc)
         _LOAD_FAILED = True

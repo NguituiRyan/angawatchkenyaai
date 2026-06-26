@@ -46,8 +46,28 @@ python scripts/run_demo.py --all-mock        # (coming in later modules)
 streamlit run dashboard/app.py                # (coming in Module 4)
 ```
 
-Each module is independently runnable: `python -m graph.demo`, `python -m risk.demo`,
-`python -m scoring.demo`, `python -m alerts.demo`, `python -m masumi_integration.demo`.
+Each module is independently runnable:
+```bash
+python -m graph.demo          # seeded graph + Farmer-A subgraph
+python -m sim.demo            # sensor stream + injected blight
+python -m risk.demo           # pure rule checks
+python -m alerts.demo         # alert channel (WhatsApp/console)
+python -m scoring.demo        # 7-factor explainable score (Farmer-A vs Farmer-B)
+python -m agents.demo         # Credit-Risk Agent (score + narration + audit)
+python -m masumi_integration.demo      # 5-stage Masumi round-trip + audit
+python -m masumi_integration.sokosumi  # Sokosumi coworker registration (+10)
+python -m vision.demo         # leaf classifier (mock; VISION_MODE=live for the HF model)
+```
+Run the tests: `python -m pytest -q` (16 tests — pure rules, scorer, dashboard smoke).
+
+## Deploy to Streamlit Community Cloud (the submission link)
+1. Push this repo to GitHub (done).
+2. On [share.streamlit.io](https://share.streamlit.io) → **New app** → pick this repo,
+   branch `main`, file `dashboard/app.py`.
+3. **Advanced settings → Secrets**: paste the keys from
+   [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example) (Neo4j Aura is needed
+   so the cloud app has a database; keep `VISION_MODE=mock`, `MASUMI_MODE=mock`).
+4. Deploy. The cloud build uses the light `requirements.txt` (no torch/CrewAI) for reliability.
 
 ## Live vs. mock matrix
 | Capability | Live when… | Otherwise (labeled mock) |
@@ -60,11 +80,12 @@ Each module is independently runnable: `python -m graph.demo`, `python -m risk.d
 
 ## Status
 - [x] Module 1 — scaffold + Neo4j/in-memory graph + synthetic seed
-- [ ] Module 2 — simulator → risk engine → alert
-- [ ] Module 3 — explainable Credit-Risk Agent
-- [ ] Module 4 — Streamlit lender dashboard (deployed)
-- [ ] Module 5 — Masumi integration (identity / request / escrow / audit)
-- [ ] Module 6 — leaf classifier + GraphRAG advisory
-- [ ] Module 7 — Sokosumi registration (+10)
+- [x] Module 2 — simulator → risk engine → alert (AgriFin hero loop)
+- [x] Module 3 — explainable 7-factor Credit-Risk Agent
+- [x] Module 4 — Streamlit lender dashboard (deployable)
+- [x] Module 5 — Masumi integration (identity / request / escrow / audit; MIP-003)
+- [x] Module 6 — leaf classifier + GraphRAG advisory
+- [x] Module 7 — Sokosumi coworker registration (+10)
 
-See [`docs/architecture.md`](docs/architecture.md) and [`docs/demo_script.md`](docs/demo_script.md).
+See [`docs/architecture.md`](docs/architecture.md) (Mermaid + where Masumi enters) and
+[`docs/demo_script.md`](docs/demo_script.md) (click-by-click for both demos).

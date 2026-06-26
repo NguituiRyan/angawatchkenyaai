@@ -7,8 +7,10 @@
 crewai>=0.60
 
 # Vision: pre-trained PlantVillage tomato classifier (inference only)
+# torchvision is required by transformers' image processor.
 transformers>=4.40
 torch>=2.2
+torchvision>=0.17
 pillow>=10.0
 
 # API surface: sensor ingest + MIP-003 agentic service

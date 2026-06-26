@@ -1,13 +1,70 @@
-"""Render the farmer's Neo4j subgraph with streamlit-agraph (falls back to JSON)."""
+"""Render the farmer's Neo4j subgraph as a readable, dark pyvis network.
+
+pyvis gives full control: outlined high-contrast labels, curved edges, hover.
+Falls back to streamlit-agraph, then JSON, so it never hard-fails.
+"""
 from __future__ import annotations
 
-import streamlit as st
+import json
 
-GROUP_COLORS = {
-    "Farmer": "#22C55E", "Greenhouse": "#3B82F6", "Season": "#A78BFA",
-    "Harvest": "#F59E0B", "Alert": "#EF4444", "Reading": "#22D3EE",
-    "Action": "#84CC16", "Cooperative": "#818CF8",
+import streamlit as st
+import streamlit.components.v1 as components
+
+GROUP = {
+    "Farmer": ("#22C55E", 30), "Greenhouse": ("#3B82F6", 26), "Season": ("#A78BFA", 20),
+    "Harvest": ("#F59E0B", 20), "Alert": ("#EF4444", 22), "Reading": ("#22D3EE", 16),
+    "Action": ("#84CC16", 18), "Cooperative": ("#818CF8", 22),
 }
+
+_OPTIONS = json.dumps({
+    "nodes": {
+        "shape": "dot", "borderWidth": 2, "borderWidthSelected": 3,
+        "color": {"border": "rgba(255,255,255,0.25)", "highlight": {"border": "#FFFFFF"}},
+        "shadow": {"enabled": True, "color": "rgba(0,0,0,0.45)", "size": 12, "x": 0, "y": 4},
+        "font": {"size": 16, "color": "#F4F8FF", "face": "Inter",
+                 "strokeWidth": 5, "strokeColor": "#070C16", "vadjust": -2},
+    },
+    "edges": {
+        "color": {"color": "#46566f", "highlight": "#22C55E", "hover": "#7dd3fc", "opacity": 0.8},
+        "width": 1.5, "selectionWidth": 2,
+        "smooth": {"type": "continuous", "roundness": 0.25},
+        "arrows": {"to": {"enabled": True, "scaleFactor": 0.55}},
+        "font": {"size": 11, "color": "#A6B6CE", "face": "JetBrains Mono",
+                 "strokeWidth": 4, "strokeColor": "#070C16", "align": "middle"},
+    },
+    "physics": {
+        "barnesHut": {"gravitationalConstant": -9500, "springLength": 135,
+                      "springConstant": 0.045, "damping": 0.55, "avoidOverlap": 0.6},
+        "stabilization": {"enabled": True, "iterations": 220, "fit": True},
+        "minVelocity": 0.6,
+    },
+    "interaction": {"hover": True, "tooltipDelay": 120, "dragNodes": True,
+                    "dragView": True, "zoomView": True, "navigationButtons": False},
+})
+
+
+def _render_pyvis(data: dict) -> bool:
+    try:
+        from pyvis.network import Network
+    except Exception:  # noqa: BLE001
+        return False
+    net = Network(height="450px", width="100%", bgcolor="#0E1626",
+                  font_color="#F4F8FF", directed=True, cdn_resources="remote")
+    net.set_options(_OPTIONS)
+    for n in data["nodes"]:
+        color, size = GROUP.get(n["group"], ("#94A3B8", 16))
+        net.add_node(n["id"], label=n["label"], color=color, size=size,
+                     title=f"{n['group']}: {n['label']}", group=n["group"])
+    for e in data["edges"]:
+        net.add_edge(e["source"], e["target"], label=e.get("label", ""), title=e.get("label", ""))
+    try:
+        html = net.generate_html(notebook=False)
+    except Exception:  # noqa: BLE001
+        html = net.generate_html()
+    # round the iframe corners to match our cards
+    html = html.replace("<body>", '<body style="margin:0;background:#0E1626;border-radius:16px">')
+    components.html(html, height=466, scrolling=False)
+    return True
 
 
 def render_graph(store, farmer_id: str) -> None:
@@ -15,30 +72,25 @@ def render_graph(store, farmer_id: str) -> None:
     if not data["nodes"]:
         st.info("No graph data for this farmer.")
         return
+    if _render_pyvis(data):
+        _legend()
+        return
+    # fallback: streamlit-agraph -> JSON
     try:
         from streamlit_agraph import Config, Edge, Node, agraph
+        nodes = [Node(id=n["id"], label=n["label"], size=15, color=GROUP.get(n["group"], ("#94A3B8",))[0])
+                 for n in data["nodes"]]
+        edges = [Edge(source=e["source"], target=e["target"], label=e.get("label", "")) for e in data["edges"]]
+        agraph(nodes=nodes, edges=edges, config=Config(width=720, height=440, directed=True, physics=True))
+        _legend()
     except Exception:  # noqa: BLE001
-        st.caption("(install streamlit-agraph for the interactive view — showing JSON)")
         st.json(data)
-        return
 
-    nodes = [Node(id=n["id"], label=n["label"], size=15,
-                  color=GROUP_COLORS.get(n["group"], "#94A3B8")) for n in data["nodes"]]
-    edges = [Edge(source=e["source"], target=e["target"], label=e.get("label", ""),
-                  color="#3A4860") for e in data["edges"]]
-    config = Config(
-        width=720, height=430, directed=True, physics=True, nodeHighlightBehavior=True,
-        highlightColor="#22C55E", collapsible=False,
-        node={"labelProperty": "label", "font": {"color": "#E8EEF6", "size": 13,
-              "face": "Inter"}},
-        link={"labelProperty": "label", "renderLabel": True,
-              "font": {"color": "#9AA8BD", "size": 10}},
-    )
-    agraph(nodes=nodes, edges=edges, config=config)
 
-    legend = "".join(
+def _legend() -> None:
+    chips = "".join(
         f'<span class="aw-pill" style="background:rgba(255,255,255,.04);border-color:{c}55;'
-        f'color:var(--muted)"><span class="dot" style="background:{c}"></span>{g}</span> '
-        for g, c in GROUP_COLORS.items())
-    st.markdown(f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-top:8px'>{legend}</div>",
+        f'color:var(--muted)"><span class="dot" style="background:{c};box-shadow:0 0 8px {c}"></span>'
+        f'{g}</span> ' for g, (c, _s) in GROUP.items())
+    st.markdown(f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-top:10px'>{chips}</div>",
                 unsafe_allow_html=True)

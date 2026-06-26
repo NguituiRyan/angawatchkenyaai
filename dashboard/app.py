@@ -38,6 +38,7 @@ theme.hero({
     "LLM": settings.llm_mode(),
     "Masumi": settings.masumi_mode(),
 })
+flow_slot = st.container()   # guided progress tracker, filled at the end of the run
 
 # --------------------------------------------------------------- sidebar ----
 with st.sidebar:
@@ -98,7 +99,9 @@ with tab_farm:
                 {"label": "Pest trap", "value": f"{latest.get('trap_count')}", "tone": "k-brand",
                  "sub": "males/trap/week"},
             ])
-            st.line_chart(df.set_index("ts")[["humidity", "temp_c"]], height=200)
+            st.caption("Humidity (green) vs air temp (amber) over recent readings — "
+                       "sustained RH ≥90% in the 10–26°C band is what drives blight risk")
+            theme.feed_chart(df.iloc[::-1])
 
         alerts = services.store.list_alerts(gh_id, limit=5)
         if alerts:
@@ -169,3 +172,17 @@ with tab_advice:
                         unsafe_allow_html=True)
             st.markdown(f"<div class='aw-card' style='margin-top:10px'>{adv['answer']}</div>",
                         unsafe_allow_html=True)
+
+# ---------------------------------------------- guided progress + footer ----
+_run = st.session_state.get("last_run")
+_has_alert = bool(_run and any(r.get("alert") for r in _run))
+_has_assess = bool(st.session_state.get("assessment"))
+_has_masumi = bool(st.session_state.get("masumi"))
+with flow_slot:
+    theme.flow_steps([
+        ("Verified farm record", "done"),
+        ("Early blight alert", "done" if _has_alert else "active"),
+        ("Explainable credit score", "done" if _has_assess else ("active" if _has_alert else "")),
+        ("On-chain Masumi audit", "done" if _has_masumi else ("active" if _has_assess else "")),
+    ])
+theme.footer()

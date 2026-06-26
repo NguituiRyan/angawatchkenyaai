@@ -182,6 +182,34 @@ small, .aw-muted{color:var(--muted);}
 hr{border-color:var(--border)!important;}
 ::-webkit-scrollbar{width:9px; height:9px;} ::-webkit-scrollbar-thumb{background:var(--border-2); border-radius:9px;}
 
+/* guided flow tracker */
+.aw-flow{display:flex; gap:0; margin:4px 0 20px; flex-wrap:wrap;}
+.aw-fstep{display:flex; align-items:center; gap:10px; padding:10px 16px; background:var(--surface);
+  border:1px solid var(--border); flex:1; min-width:165px; transition:all .2s ease;}
+.aw-fstep:first-child{border-radius:12px 0 0 12px;}
+.aw-fstep:last-child{border-radius:0 12px 12px 0;}
+.aw-fstep .n{width:24px;height:24px;border-radius:999px;display:grid;place-items:center;font-size:.76rem;
+  font-weight:700;font-family:'JetBrains Mono',monospace;background:var(--surface2);
+  border:1px solid var(--border-2);color:var(--muted); flex:0 0 auto;}
+.aw-fstep .l{font-size:.84rem;color:var(--muted);font-weight:500;line-height:1.2;}
+.aw-fstep.done{background:rgba(34,197,94,.08); border-color:rgba(34,197,94,.3);}
+.aw-fstep.done .n{background:var(--brand);color:#04140A;border-color:transparent;}
+.aw-fstep.done .l{color:var(--fg);}
+.aw-fstep.active{background:rgba(245,158,11,.10); border-color:rgba(245,158,11,.45);}
+.aw-fstep.active .n{background:var(--amber);color:#1a1206;border-color:transparent;
+  box-shadow:0 0 0 4px rgba(245,158,11,.12);}
+.aw-fstep.active .l{color:var(--fg);}
+
+/* footer */
+.aw-footer{margin-top:34px; padding:18px 4px 4px; border-top:1px solid var(--border);
+  color:var(--faint); font-size:.8rem; display:flex; justify-content:space-between;
+  flex-wrap:wrap; gap:10px; align-items:center;}
+.aw-footer .aw-pill{font-size:.7rem;}
+
+[data-testid="stExpander"]{border:1px solid var(--border)!important; border-radius:12px!important;
+  background:var(--surface)!important;}
+.stAlert{border-radius:12px!important;}
+
 @media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important;}}
 </style>
 """
@@ -259,6 +287,37 @@ def stepper(steps: list[dict]) -> str:
                  f'<div class="t">{html.escape(s["label"])} {proof_html}</div>'
                  f'<div class="d">{html.escape(s.get("detail",""))}</div>{tx}</div></div>')
     return f'<div class="aw-steps">{rows}</div>'
+
+
+def flow_steps(steps: list[tuple[str, str]]) -> None:
+    """steps = [(label, state)] where state in {'done','active',''}."""
+    cells = ""
+    for i, (label, state) in enumerate(steps, 1):
+        mark = icon("check", 14) if state == "done" else str(i)
+        cells += (f'<div class="aw-fstep {state}"><span class="n">{mark}</span>'
+                  f'<span class="l">{html.escape(label)}</span></div>')
+    st.markdown(f'<div class="aw-flow">{cells}</div>', unsafe_allow_html=True)
+
+
+def feed_chart(df):
+    """Dark feed chart: humidity + air temp over time, themed green/amber.
+
+    Uses Streamlit's native chart (sizes reliably) with a step index so repeated
+    times-of-day don't collapse. The 90% blight threshold is noted in the caption.
+    """
+    data = (df[["humidity", "temp_c"]]
+            .rename(columns={"humidity": "Humidity %", "temp_c": "Air temp °C"})
+            .reset_index(drop=True))
+    data.index.name = "reading"
+    st.line_chart(data, color=["#34D399", "#FBBF24"], height=240, use_container_width=True)
+
+
+def footer() -> None:
+    st.markdown(
+        '<div class="aw-footer"><span>Angawatch · Kenya AI Challenge — AgriFin track + '
+        'Masumi Business-Agent bounty</span>'
+        '<span class="aw-pill live"><span class="dot"></span>Deterministic core · '
+        'labeled mocks · human-in-the-loop</span></div>', unsafe_allow_html=True)
 
 
 def alert_card(level: str, kind: str, message: str, delivery: str, provider: str) -> None:

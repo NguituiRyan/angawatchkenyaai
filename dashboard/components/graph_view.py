@@ -42,9 +42,10 @@ _OPTIONS = json.dumps({
         "stabilization": {"enabled": True, "iterations": 220, "fit": True},
         "minVelocity": 0.6,
     },
-    # locked: no scroll-zoom / no pan (so page scroll works + graph stays in frame)
+    # interactive: physics on + scroll-zoom + pan + drag (the full Neo4j-style graph)
     "interaction": {"hover": True, "tooltipDelay": 120, "dragNodes": True,
-                    "dragView": False, "zoomView": False, "navigationButtons": False},
+                    "dragView": True, "zoomView": True, "navigationButtons": False,
+                    "keyboard": False},
 })
 
 # KG-subgraph variant ONLY (same look as the farm graph; just centred physics for the few
@@ -58,7 +59,7 @@ _kg_opts["physics"] = {
 _KG_OPTIONS = json.dumps(_kg_opts)
 
 
-def _render_pyvis(data: dict, options: str | None = None, fit_scale: float = 1.0) -> bool:
+def _render_pyvis(data: dict, options: str | None = None, fit_scale: float = 0.85) -> bool:
     try:
         from pyvis.network import Network
     except Exception:  # noqa: BLE001
@@ -78,16 +79,12 @@ def _render_pyvis(data: dict, options: str | None = None, fit_scale: float = 1.0
         html = net.generate_html()
     # round the iframe corners to match our cards
     html = html.replace("<body>", '<body style="margin:0;background:#FFFFFF;border-radius:16px">')
-    # freeze physics once stabilized so the graph stops drifting / leaving the frame.
-    # fit_scale<1 zooms out a touch after fit so wide labels don't clip (KG viz only).
-    if fit_scale == 1.0:
-        fitjs = "network.fit();"
-    else:
-        fitjs = (f"network.fit({{animation:false}});"
-                 f"network.moveTo({{scale:network.getScale()*{fit_scale},animation:false}});")
-    freeze = ("<script>setTimeout(function(){try{network.setOptions({physics:false});"
-              + fitjs + "}catch(e){}},2600);</script>")
-    html = html.replace("</body>", freeze + "</body>")
+    # keep physics ON (interactive) but fit-to-frame once it settles, zooming out a touch so
+    # nodes/labels don't clip. The graph stays draggable, zoomable and pannable.
+    fitjs = (f"network.fit({{animation:false}});"
+             f"network.moveTo({{scale:network.getScale()*{fit_scale},animation:false}});")
+    settle = ("<script>setTimeout(function(){try{" + fitjs + "}catch(e){}},2600);</script>")
+    html = html.replace("</body>", settle + "</body>")
     components.html(html, height=466, scrolling=False)
     return True
 

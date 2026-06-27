@@ -569,6 +569,20 @@ if "warmed" not in st.session_state:
     calm_ticks(services, gh_id, n=4)
     st.session_state.warmed = True
 
+# ---- top role switch (one tap to flip Co-op <-> Farmer, no sidebar needed) ---
+_other, _other_label = (("coop", "Co-op view") if role == "farmer"
+                        else ("farmer", "Farmer view"))
+_now_label = "Farmer view" if role == "farmer" else "Co-op view"
+_sw_l, _sw_r = st.columns([5, 2])
+with _sw_l:
+    st.markdown(f"<div style='padding-top:6px'>{theme.pill('live' if role=='farmer' else 'real', _now_label)}"
+                f" <span style='color:var(--faint);font-size:.8rem'>you're viewing as</span></div>",
+                unsafe_allow_html=True)
+with _sw_r:
+    if st.button(f"⇄  Switch to {_other_label}", key="top_switch", use_container_width=True):
+        st.session_state.role = _other
+        st.rerun()
+
 # ---------------------------------------------------------------- topbar -----
 if role == "farmer":
     theme.topbar("My greenhouse",

@@ -240,11 +240,11 @@ with tab_doctor:
             st.markdown(theme.treatment_list(exp.get("treatments", []), n=6), unsafe_allow_html=True)
         with gcol:
             theme.section("The path on the graph",
-                          "The disease and its neighbours in the knowledge graph.", "shield")
-            if tgt.get("label") == "Disease" and tgt.get("id"):
+                          "The disease/pest and its neighbours in the knowledge graph.", "shield")
+            if tgt.get("id"):
                 render_kg(kg_subgraph(services, tgt["id"]))
             else:
-                st.caption("Pest target — see the ranked controls on the left.")
+                st.caption("No graph target for this alert.")
 
         with st.expander("🧠 Shows thinking — the Cypher traversal the agent ran"):
             st.code(exp.get("cypher", ""), language="cypher")

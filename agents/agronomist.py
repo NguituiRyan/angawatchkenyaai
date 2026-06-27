@@ -30,8 +30,9 @@ def _efficacy_label(t: dict) -> str:
 
 def _facts(path: dict) -> str:
     d = path.get("disease") or {}
+    dx = d.get("name")
     lines = [f"Alert: {path['alert'].get('kind')} ({path['alert'].get('level')})",
-             f"Diagnosis: {d.get('name')} caused by {path.get('pathogen')}",
+             f"Diagnosis: {dx}" + (f" caused by {path['pathogen']}" if path.get("pathogen") else ""),
              f"Indicated conditions: {', '.join(path.get('conditions') or []) or 'n/a'}"]
     for t in path.get("treatments", [])[:5]:
         warn = f"; HARMFUL to {', '.join(t['harmful_to'])}" if t.get("harmful_to") else ""
@@ -57,7 +58,8 @@ def _template(path: dict) -> str:
     tops = path.get("treatments", [])[:3]
     rec = "; ".join(f"{t['name']} (PHI {t.get('phi_days')}d)" for t in tops)
     warn = next((t for t in path.get("treatments", []) if t.get("harmful_to")), None)
-    txt = (f"{d.get('name','This problem')} (caused by {path.get('pathogen')}) is indicated by "
+    cause = f" (caused by {path['pathogen']})" if path.get("pathogen") else ""
+    txt = (f"{d.get('name','This problem')}{cause} is indicated by "
            f"{conds}. Recommended, in order: {rec}. Start with cultural/cheap controls before "
            "spraying.")
     if warn:

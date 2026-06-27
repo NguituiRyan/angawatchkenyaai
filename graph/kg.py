@@ -176,25 +176,28 @@ def diagnose(store, gh_id: str) -> dict:
 
 
 def kg_subgraph(store, focus_id: str) -> dict:
-    """Small ontology subgraph around a disease (for visualization)."""
+    """Small ontology subgraph around a focus DISEASE or PEST (for visualization)."""
     nodes, edges, seen = [], [], set()
+    focus_label = "Pest" if any(p["id"] == focus_id for p in A.NODES["Pest"]) else "Disease"
 
     def add(label, nid):
         if nid and nid not in seen:
             seen.add(nid)
             nodes.append({"id": nid, "label": _node(label, nid).get("name", nid), "group": label})
 
-    add("Disease", focus_id)
+    add(focus_label, focus_id)
     for fl, fid, rel, tl, tid, props in A.EDGES:
-        if fid == focus_id and fl == "Disease":
+        # the focus node's own neighbours (disease -> pathogen/condition/symptom/crop;
+        # pest -> crop it damages / disease it vectors)
+        if fid == focus_id and fl == focus_label:
             add(tl, tid)
             edges.append({"source": fid, "target": tid, "label": rel.replace("_REVERSE", "")})
-        if rel == "CONTROLS" and tl == "Disease" and tid == focus_id:
+        # treatments that CONTROL the focus disease/pest
+        if rel == "CONTROLS" and tl == focus_label and tid == focus_id:
             add("Treatment", fid)
             edges.append({"source": fid, "target": focus_id, "label": "CONTROLS"})
-        if rel == "FAVORS_REVERSE" and fid == focus_id:
-            edges.append({"source": tid, "target": fid, "label": "FAVORS"})
-        if rel == "VECTORS" and tid == focus_id:
+        # pests that VECTOR the focus disease
+        if rel == "VECTORS" and tl == "Disease" and tid == focus_id:
             add("Pest", fid)
             edges.append({"source": fid, "target": focus_id, "label": "VECTORS"})
     return {"nodes": nodes, "edges": edges}

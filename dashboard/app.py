@@ -21,12 +21,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 # Streamlit Cloud hot-reloads app.py but NOT changed sub-modules — so a new app.py can
 # run against stale cached modules and crash until a manual reboot. Force-refresh the
 # fast-changing, STATELESS code each run so signature changes can never crash the deployed
-# app between push and reboot. NOT refreshed: dashboard.services_cache / services / graph /
-# config — they hold the @st.cache_resource Services + the live Neo4j connection, which
-# must persist (built once). The advisory→Masumi path lives in agents.*/masumi_integration.*,
-# so those are refreshed too (they hold no caches/connections).
+# app between push and reboot. graph.kg / graph.agronomy are the agronomic-ontology
+# traversals (the store is passed in, so they hold no connection) — refreshed too. NOT
+# refreshed: dashboard.services_cache / services / graph.store / graph.seed / config — they
+# hold the @st.cache_resource Services + the live Neo4j connection, which must persist.
 _REFRESH = ("dashboard.theme", "dashboard.state", "dashboard.components",
-            "agents", "masumi_integration", "comms")
+            "agents", "masumi_integration", "comms", "graph.kg", "graph.agronomy")
 for _m in [m for m in list(sys.modules)
            if any(m == p or m.startswith(p + ".") for p in _REFRESH)]:
     del sys.modules[_m]

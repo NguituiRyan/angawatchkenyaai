@@ -209,6 +209,9 @@ p, span, label, li, .stMarkdown{color:var(--fg);}
 .aw-fstep.active{background:#fff; border-color:var(--amber); box-shadow:0 0 0 3px rgba(242,197,61,.15);}
 .aw-fstep.active .n{background:var(--amber);color:#1a1206;border-color:transparent;}
 .aw-fstep.active .l{color:var(--fg);}
+.aw-flow-v{flex-direction:column; gap:8px;}
+.aw-flow-v .aw-fstep{min-width:0; width:100%; border-radius:12px; padding:11px 13px;}
+.aw-flow-v .aw-fstep .l{font-size:.82rem;}
 
 /* footer */
 .aw-footer{margin-top:30px; padding:18px 4px 4px; border-top:1px solid var(--border);
@@ -230,11 +233,21 @@ p, span, label, li, .stMarkdown{color:var(--fg);}
 [data-testid="stMetricValue"]{font-family:'Plus Jakarta Sans',sans-serif; font-variant-numeric:tabular-nums;}
 [data-testid="stMetricLabel"] p{color:var(--faint); text-transform:uppercase; letter-spacing:.05em; font-size:.72rem;}
 
-.stTabs [data-baseweb="tab-list"]{gap:8px; border-bottom:none; background:var(--surface);
-  padding:6px; border-radius:14px; border:1px solid var(--border); box-shadow:var(--shadow-sm);}
-.stTabs [data-baseweb="tab"]{background:transparent; border-radius:10px; padding:9px 18px;
-  color:var(--muted); font-weight:700; font-family:'Plus Jakarta Sans',sans-serif;}
-.stTabs [aria-selected="true"]{background:var(--brand-soft); color:var(--brand-ink);}
+/* primary navigation — the hero element: big, elevated segmented control */
+.stTabs [data-baseweb="tab-list"]{gap:10px; border-bottom:none; background:var(--surface);
+  padding:9px; border-radius:20px; border:1px solid var(--border); box-shadow:var(--shadow);
+  margin:2px 0 16px;}
+.stTabs [data-baseweb="tab"]{flex:1; justify-content:center; background:var(--surface-2);
+  border-radius:14px; padding:16px 14px; color:var(--muted); font-weight:800; font-size:1.05rem;
+  font-family:'Plus Jakarta Sans',sans-serif; border:1px solid var(--border);
+  transition:transform .16s ease, box-shadow .16s ease, background .16s ease;}
+.stTabs [data-baseweb="tab"]:hover{background:var(--brand-soft); color:var(--brand-ink);
+  border-color:#cfe9bf;}
+.stTabs [aria-selected="true"]{border:none!important;
+  background:linear-gradient(135deg,var(--hero-1),var(--brand-strong))!important;
+  color:#0a2409!important; box-shadow:0 12px 26px -10px rgba(84,180,53,.65); transform:translateY(-2px);}
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"]{display:none!important;}
+.stTabs [data-baseweb="tab-panel"]{padding-top:4px;}
 
 [data-testid="stSidebar"]{background:var(--surface); border-right:1px solid var(--border);}
 [data-testid="stSidebar"] *{color:var(--fg);}
@@ -431,13 +444,14 @@ def stepper(steps: list[dict]) -> str:
     return f'<div class="aw-steps">{rows}</div>'
 
 
-def flow_steps(steps: list[tuple[str, str]]) -> None:
+def flow_steps(steps: list[tuple[str, str]], vertical: bool = False) -> None:
     cells = ""
     for i, (label, state) in enumerate(steps, 1):
         mark = icon("check", 14) if state == "done" else str(i)
         cells += (f'<div class="aw-fstep {state}"><span class="n">{mark}</span>'
                   f'<span class="l">{html.escape(label)}</span></div>')
-    st.markdown(f'<div class="aw-flow">{cells}</div>', unsafe_allow_html=True)
+    cls = "aw-flow aw-flow-v" if vertical else "aw-flow"
+    st.markdown(f'<div class="{cls}">{cells}</div>', unsafe_allow_html=True)
 
 
 def feed_chart(df):

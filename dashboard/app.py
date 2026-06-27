@@ -41,6 +41,9 @@ with st.sidebar:
     gh_id, county = FARMERS[farmer_id]
     st.markdown(f"<span class='aw-hash'>greenhouse {gh_id} · {county}</span>", unsafe_allow_html=True)
     st.divider()
+    st.markdown("**Demo flow** — what to do")
+    sb_flow = st.container()   # vertical progress tracker, filled at end of the run
+    st.divider()
     # inline (not settings.masumi_status()) so a hot-reload with a cached config
     # module can't crash the app on a newly-added method
     _mstat = ("real" if settings.masumi_mode() == "real"
@@ -72,11 +75,10 @@ alerts_n = len(services.store.list_alerts(gh_id, limit=20))
 theme.topbar("Greenhouse Monitoring",
              "Angawatch — early crop-saving alerts + a verified farm record lenders price risk against",
              datetime.now().strftime("%a %H:%M"), alerts=alerts_n)
-flow_slot = st.container()
 
-# ----------------------------------------------------- hero + readiness -----
+# ------- precompute hero/readiness (rendered inside the Farm tab) ------------
 latest = (services.store.list_recent_readings(gh_id, limit=1) or [{}])[0]
-assessment_now = engine_risk = None
+engine_risk = None
 try:
     engine_risk = services.engine.evaluate(gh_id).top
 except Exception:  # noqa: BLE001
@@ -85,26 +87,27 @@ risk_level = engine_risk.level if engine_risk else "LOW"
 risk_kind = engine_risk.kind if engine_risk else "—"
 teaser = quick_score(services, farmer_id)
 
-hcol, gcol = st.columns([2, 1], gap="large")
-with hcol:
-    theme.hero_conditions(gh_id, county, latest, datetime.now().strftime("%a %d %b"),
-                          risk_level, risk_kind)
-with gcol:
-    st.markdown(
-        f'<div class="aw-card" style="height:100%"><div class="aw-section" style="margin-bottom:10px">'
-        f'<span class="ic">{theme.icon("bank",18)}</span><div><h3>Finance readiness</h3>'
-        f'<p>credit score from the farm record</p></div></div>'
-        f'{theme.gauge(teaser["score"], "Credit band " + teaser["grade"], teaser["limit"])}'
-        f'<p style="color:var(--muted);font-size:.82rem;margin-top:12px">A SACCO can hire the '
-        f'Credit-Risk Agent via Masumi to turn this record into an explainable, auditable score.</p>'
-        f'</div>', unsafe_allow_html=True)
-
+# ---- primary navigation: big, high, stunning (the main thing) --------------
 tab_farm, tab_credit, tab_advice, tab_phone = st.tabs(
     ["🌡️  Farm record & live feed", "🏦  Credit assessment", "🍃  Leaf scan & advisor",
      "📱  Feature phone & offline"])
 
 # ============================================================ FARM TAB ======
 with tab_farm:
+    hcol, gcol = st.columns([2, 1], gap="large")
+    with hcol:
+        theme.hero_conditions(gh_id, county, latest, datetime.now().strftime("%a %d %b"),
+                              risk_level, risk_kind)
+    with gcol:
+        st.markdown(
+            f'<div class="aw-card" style="height:100%"><div class="aw-section" style="margin-bottom:10px">'
+            f'<span class="ic">{theme.icon("bank",18)}</span><div><h3>Finance readiness</h3>'
+            f'<p>credit score from the farm record</p></div></div>'
+            f'{theme.gauge(teaser["score"], "Credit band " + teaser["grade"], teaser["limit"])}'
+            f'<p style="color:var(--muted);font-size:.82rem;margin-top:12px">A SACCO can hire the '
+            f'Credit-Risk Agent via Masumi to turn this record into an explainable, auditable score.</p>'
+            f'</div>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
     left, right = st.columns([3, 2], gap="large")
     with left:
         theme.section("Verified farm record", "Neo4j graph: readings → alerts "
@@ -268,11 +271,11 @@ _run = st.session_state.get("last_run")
 _has_alert = bool(_run and any(r.get("alert") for r in _run))
 _has_assess = bool(st.session_state.get("assessment"))
 _has_masumi = bool(st.session_state.get("masumi"))
-with flow_slot:
+with sb_flow:
     theme.flow_steps([
         ("Verified farm record", "done"),
         ("Early blight alert", "done" if _has_alert else "active"),
         ("Explainable credit score", "done" if _has_assess else ("active" if _has_alert else "")),
         ("On-chain Masumi audit", "done" if _has_masumi else ("active" if _has_assess else "")),
-    ])
+    ], vertical=True)
 theme.footer()

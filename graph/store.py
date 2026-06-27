@@ -18,9 +18,9 @@ log = get_logger("graph.store")
 class Neo4jGraphStore:
     mode = "neo4j"
 
-    def __init__(self, driver, database: str = "neo4j") -> None:
+    def __init__(self, driver, database: str | None = None) -> None:
         self.driver = driver
-        self.database = database
+        self.database = database or None   # None -> use the home/default database
 
     # --- low-level ---------------------------------------------------------
     def _run(self, cypher: str, **params) -> list[dict]:
@@ -303,7 +303,7 @@ def get_store(settings=None):
             from graph.connection import get_driver
             driver = get_driver(settings.NEO4J_URI, settings.NEO4J_USER, settings.NEO4J_PASSWORD)
             log.info("%s graph backend: Neo4j Aura (%s)", tag("live"), settings.NEO4J_URI)
-            return Neo4jGraphStore(driver)
+            return Neo4jGraphStore(driver, database=settings.NEO4J_DATABASE)
         except Exception as exc:  # noqa: BLE001
             log.warning("%s Neo4j unavailable (%s) → in-memory store", tag("mock"), exc)
     else:

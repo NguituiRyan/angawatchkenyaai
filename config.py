@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     NEO4J_URI: str | None = None
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str | None = None
+    NEO4J_DATABASE: str = ""   # blank = use the instance's home/default database
     GRAPH_BACKEND: str = "auto"  # auto | neo4j | memory
 
     # --- OpenRouter LLM ----------------------------------------------------

@@ -27,12 +27,13 @@ for _m in [m for m in list(sys.modules)
 
 from dashboard.components.graph_view import render_graph, render_kg  # noqa: E402
 from dashboard.components.masumi_panel import render_masumi       # noqa: E402
-from dashboard.components.score_card import render_score_card     # noqa: E402
-from dashboard.state import (advisory_answer, agronomist_diagnose,  # noqa: E402
-                             agronomist_explain, assess, calm_ticks,
-                             classify_leaf, get_services, inject_and_run,
-                             kg_subgraph, masumi_round_trip, offline_box,
-                             quick_score, set_language, sms_reply)
+from dashboard.components.advisory_card import render_advisory_report  # noqa: E402
+from dashboard.state import (advisory_answer, advisory_report,  # noqa: E402
+                             agronomist_diagnose, agronomist_explain,
+                             calm_ticks, classify_leaf, coop_triage,
+                             get_services, inject_and_run, kg_subgraph,
+                             masumi_round_trip, offline_box, set_language,
+                             sms_reply)
 from dashboard import theme                                       # noqa: E402
 
 st.set_page_config(page_title="Angawatch — Greenhouse Monitoring", page_icon="🌱", layout="wide")
@@ -82,10 +83,10 @@ if "warmed" not in st.session_state:
 # ---------------------------------------------------------------- topbar ----
 alerts_n = len(services.store.list_alerts(gh_id, limit=20))
 theme.topbar("Greenhouse Monitoring",
-             "Angawatch — early crop-saving alerts + a verified farm record lenders price risk against",
+             "Angawatch — early crop-saving alerts + a graph-grounded crop-health advisory a co-op hires via Masumi",
              datetime.now().strftime("%a %H:%M"), alerts=alerts_n)
 
-# ------- precompute hero/readiness (rendered inside the Farm tab) ------------
+# ------- precompute hero/snapshot (rendered inside the Farm tab) -------------
 latest = (services.store.list_recent_readings(gh_id, limit=1) or [{}])[0]
 engine_risk = None
 try:
@@ -94,11 +95,11 @@ except Exception:  # noqa: BLE001
     pass
 risk_level = engine_risk.level if engine_risk else "LOW"
 risk_kind = engine_risk.kind if engine_risk else "—"
-teaser = quick_score(services, farmer_id)
+snapshot = advisory_report(services, gh_id, farm_id=farmer_id, risk_level=risk_level, narrate=False)
 
 # ---- primary navigation: big, high, stunning (the main thing) --------------
-tab_farm, tab_doctor, tab_credit, tab_advice, tab_phone = st.tabs(
-    ["🌡️  Farm record & live feed", "🧠  Crop doctor (GraphRAG)", "🏦  Credit assessment",
+tab_farm, tab_doctor, tab_coop, tab_advice, tab_phone = st.tabs(
+    ["🌡️  Farm record & live feed", "🧠  Crop doctor (GraphRAG)", "🤝  Co-op triage & hire",
      "🍃  Leaf scan & advisor", "📱  Feature phone & offline"])
 
 # ============================================================ FARM TAB ======
@@ -108,13 +109,22 @@ with tab_farm:
         theme.hero_conditions(gh_id, county, latest, datetime.now().strftime("%a %d %b"),
                               risk_level, risk_kind)
     with gcol:
+        _tone = {"HIGH": "#E5484D", "MED": "#E8A317", "LOW": "#54B435"}.get(risk_level, "#54B435")
+        _topact = (snapshot.recommended_actions[0]["name"]
+                   if snapshot.recommended_actions else "Monitor conditions")
         st.markdown(
             f'<div class="aw-card" style="height:100%"><div class="aw-section" style="margin-bottom:10px">'
-            f'<span class="ic">{theme.icon("bank",18)}</span><div><h3>Finance readiness</h3>'
-            f'<p>credit score from the farm record</p></div></div>'
-            f'{theme.gauge(teaser["score"], "Credit band " + teaser["grade"], teaser["limit"])}'
-            f'<p style="color:var(--muted);font-size:.82rem;margin-top:12px">A SACCO can hire the '
-            f'Credit-Risk Agent via Masumi to turn this record into an explainable, auditable score.</p>'
+            f'<span class="ic">{theme.icon("spark",18)}</span><div><h3>Advisory snapshot</h3>'
+            f'<p>graph-grounded crop-health for this farm</p></div></div>'
+            f'<div style="font-size:.72rem;color:var(--faint);font-family:JetBrains Mono,monospace">DIAGNOSIS</div>'
+            f'<div style="font-size:1.3rem;font-weight:800;color:var(--fg);line-height:1.15">{snapshot.diagnosis}</div>'
+            f'<div style="margin:10px 0"><span style="background:{_tone};color:#fff;border-radius:9px;'
+            f'padding:5px 11px;font-weight:700;font-size:.8rem">{snapshot.priority}</span></div>'
+            f'<div style="font-size:.72rem;color:var(--faint);font-family:JetBrains Mono,monospace">TOP ACTION</div>'
+            f'<div style="font-weight:600;color:var(--fg)">{_topact}</div>'
+            f'<p style="color:var(--muted);font-size:.82rem;margin-top:12px">A co-op hires this '
+            f'advisory agent via Masumi to triage farms and get an auditable diagnosis — see '
+            f'<b>Co-op triage &amp; hire</b>.</p>'
             f'</div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     left, right = st.columns([3, 2], gap="large")
@@ -252,30 +262,49 @@ with tab_doctor:
             st.caption(f"Top control for {diag['diseases'][0]['name']}:")
             st.markdown(theme.treatment_list(diag["treatments"], n=3), unsafe_allow_html=True)
 
-# ========================================================== CREDIT TAB ======
-with tab_credit:
-    theme.section(f"Credit-Risk assessment — {farmer_id}",
-                  "Hire the agent: it reads the farmer's own subgraph and returns an "
-                  "explainable, multi-factor recommendation. A loan officer approves.", "bank")
-    if st.button("Request assessment", type="primary", key="assess"):
-        with st.spinner("Agent reading the farm record and scoring…"):
-            st.session_state.assessment = assess(services, farmer_id)
+# ========================================================= CO-OP TRIAGE =====
+with tab_coop:
+    theme.section("Co-op crop-health triage — the buyer's view",
+                  "A horticulture co-op / off-taker contracts hundreds of greenhouses but has only "
+                  "a few field officers. The agent monitors every farm, TRIAGES who's at risk, and "
+                  "prepares a per-farm diagnosis + plan — so a scarce officer is sent where it matters. "
+                  "The co-op agronomist approves.", "shield")
 
-    a = st.session_state.get("assessment")
-    if a and a.farmer_id == farmer_id:
-        render_score_card(a)
-        st.divider()
-        theme.section("Hire & pay the agent via Masumi",
-                      "Discover → pay escrow (USDM/ADA) → deliver → on-chain audit.", "link")
-        if st.button("Pay & deliver via Masumi", type="primary", key="masumi_pay"):
-            with st.spinner("Discovering agent → escrow payment → deliver → audit…"):
-                trip, mode = masumi_round_trip(services, a)
-                st.session_state.masumi = (trip, mode, farmer_id)
-        m = st.session_state.get("masumi")
-        if m and m[2] == farmer_id:
-            render_masumi(m[0], m[1])
-    else:
-        st.info("Click **Request assessment** to run the Credit-Risk Agent for this farmer.")
+    farms = [(fid, gh, ct) for fid, (gh, ct) in FARMERS.items()]
+    triage = coop_triage(services, farms)
+
+    st.markdown("**Member greenhouses — officer-visit priority** (highest risk first)")
+    trows = [{"priority": t["report"].priority, "greenhouse": t["gh_id"], "farmer": t["farmer_id"],
+              "county": t["county"], "risk": t["report"].risk_level,
+              "diagnosis": t["report"].diagnosis} for t in triage]
+    st.dataframe(pd.DataFrame(trows), hide_index=True, use_container_width=True)
+    n_high = sum(1 for t in triage if t["report"].risk_level == "HIGH")
+    st.caption(f"{len(triage)} contracted greenhouses · {n_high} need a visit now · the agent ranks "
+               "them so 3 officers can cover 400 farms by exception, not by rota.")
+
+    st.divider()
+    options = [t["farmer_id"] for t in triage]
+    pick = st.selectbox("Prepare a verified advisory report for:", options, index=0, key="coop_pick")
+    picked = next(t for t in triage if t["farmer_id"] == pick)
+    ckey = (pick, picked["report"].risk_level)
+    if st.session_state.get("coop_rep_key") != ckey:
+        with st.spinner("Agent traversing the knowledge graph…"):
+            st.session_state.coop_rep = advisory_report(
+                services, picked["gh_id"], farm_id=pick, risk_level=picked["report"].risk_level)
+        st.session_state.coop_rep_key = ckey
+    rep = st.session_state.coop_rep
+    render_advisory_report(rep)
+
+    st.divider()
+    theme.section("Hire & pay the agent via Masumi",
+                  "Co-op discovers → pays per report (escrow USDM/ADA) → deliver → on-chain audit.", "link")
+    if st.button("Pay & deliver via Masumi", type="primary", key="masumi_pay"):
+        with st.spinner("Discovering agent → escrow payment → deliver advisory → audit…"):
+            trip, mode = masumi_round_trip(services, rep)
+            st.session_state.masumi = (trip, mode, rep.greenhouse_id)
+    m = st.session_state.get("masumi")
+    if m and m[2] == rep.greenhouse_id:
+        render_masumi(m[0], m[1])
 
 # ========================================================== ADVICE TAB ======
 with tab_advice:
@@ -339,11 +368,11 @@ with tab_phone:
             th.append(("Angawatch", "in", r["reply"]))
 
         kcols = st.columns(4)
-        for col, (kw, lbl) in zip(kcols, [("STATUS", "Status"), ("LOAN", "Loan"),
+        for col, (kw, lbl) in zip(kcols, [("STATUS", "Status"), ("ADVICE", "Advice"),
                                           ("ALERTS", "Subscribe"), ("HELP", "Help")]):
             if col.button(lbl, key=f"sms_{kw}", use_container_width=True):
                 _send(kw)
-        custom = st.text_input("…or type a keyword (STATUS / MKOPO / SW / EN / STOP)", key="sms_in")
+        custom = st.text_input("…or type a keyword (STATUS / USHAURI / SW / EN / STOP)", key="sms_in")
         if st.button("Send SMS", key="sms_send") and custom.strip():
             _send(custom.strip())
 
@@ -367,14 +396,14 @@ with tab_phone:
 _run = st.session_state.get("last_run")
 _has_alert = bool(_run and any(r.get("alert") for r in _run))
 _has_doctor = bool(st.session_state.get("kg_exp"))
-_has_assess = bool(st.session_state.get("assessment"))
+_has_advisory = bool(st.session_state.get("coop_rep"))
 _has_masumi = bool(st.session_state.get("masumi"))
 _flow = [
     ("Verified farm record", "done"),
     ("Blight alert fires", "done" if _has_alert else "active"),
     ("GraphRAG crop diagnosis", "done" if _has_doctor else ("active" if _has_alert else "")),
-    ("Explainable credit score", "done" if _has_assess else ("active" if _has_doctor else "")),
-    ("On-chain Masumi audit", "done" if _has_masumi else ("active" if _has_assess else "")),
+    ("Co-op triage + advisory", "done" if _has_advisory else ("active" if _has_doctor else "")),
+    ("Hire & on-chain audit (Masumi)", "done" if _has_masumi else ("active" if _has_advisory else "")),
 ]
 with sb_flow:
     try:

@@ -1,12 +1,12 @@
 """Standalone Masumi round-trip demo:  python -m masumi_integration.demo
 
-Lender discovers -> hires -> pays escrow -> agent delivers -> on-chain audit.
-Runs the labeled mock by default; set MASUMI_MODE=real (+ keys + funded wallet)
-for genuine preprod, or MASUMI_PRERECORDED_TX=<txhash> to show a real audit link.
+Co-op discovers -> hires -> pays per report -> agent delivers the advisory ->
+on-chain audit. Runs the labeled mock by default; set MASUMI_MODE=real (+ keys +
+funded wallet) for genuine preprod, or MASUMI_PRERECORDED_TX=<txhash> for a real link.
 """
 from __future__ import annotations
 
-from agents.credit_crew import CreditRiskAgent
+from agents.advisory import AdvisoryAgent
 from config import get_settings
 from graph.seed import ensure_seeded
 from graph.store import get_store
@@ -19,9 +19,10 @@ def main() -> None:
     store = get_store(settings)
     ensure_seeded(store)
 
-    assessment = CreditRiskAgent(settings).assess(store, settings.DEFAULT_FARMER_ID)
+    report = AdvisoryAgent(settings).report(store, settings.DEFAULT_GREENHOUSE_ID,
+                                            farm_id=settings.DEFAULT_FARMER_ID)
     client = build_masumi_client(settings)
-    trip = client.run_round_trip(assessment, store=store)
+    trip = client.run_round_trip(report, store=store)
 
     print(f"\nMasumi round-trip  —  backend: {tag(client.mode)} {client.mode}\n")
     for s in trip["steps"]:

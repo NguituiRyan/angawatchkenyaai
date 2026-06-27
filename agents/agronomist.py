@@ -50,6 +50,21 @@ PROMPT = (
 )
 
 
+def _template(path: dict) -> str:
+    """Deterministic narration from the graph facts (no LLM)."""
+    d = path.get("disease") or {}
+    conds = ", ".join(path.get("conditions") or []) or "the recent conditions"
+    tops = path.get("treatments", [])[:3]
+    rec = "; ".join(f"{t['name']} (PHI {t.get('phi_days')}d)" for t in tops)
+    warn = next((t for t in path.get("treatments", []) if t.get("harmful_to")), None)
+    txt = (f"{d.get('name','This problem')} (caused by {path.get('pathogen')}) is indicated by "
+           f"{conds}. Recommended, in order: {rec}. Start with cultural/cheap controls before "
+           "spraying.")
+    if warn:
+        txt += f" Note: {warn['name']} is harmful to {', '.join(warn['harmful_to'])} — avoid near flowering."
+    return txt
+
+
 def _narrate(path: dict, settings) -> tuple[str, str]:
     facts = _facts(path)
     if settings.llm_mode() == "live":
@@ -63,29 +78,18 @@ def _narrate(path: dict, settings) -> tuple[str, str]:
                 return clean_llm_text(r.choices[0].message.content), "live"
             except Exception as exc:  # noqa: BLE001
                 log.warning("agronomist narration failed (%s) — template", exc)
-    # deterministic fallback
-    d = path.get("disease") or {}
-    conds = ", ".join(path.get("conditions") or []) or "the recent conditions"
-    tops = path.get("treatments", [])[:3]
-    rec = "; ".join(f"{t['name']} (PHI {t.get('phi_days')}d)" for t in tops)
-    warn = next((t for t in path.get("treatments", []) if t.get("harmful_to")), None)
-    txt = (f"{d.get('name','This problem')} (caused by {path.get('pathogen')}) is indicated by "
-           f"{conds}. Recommended, in order: {rec}. Start with cultural/cheap controls before "
-           "spraying.")
-    if warn:
-        txt += f" Note: {warn['name']} is harmful to {', '.join(warn['harmful_to'])} — avoid near flowering."
-    return txt, "mock"
+    return _template(path), "mock"
 
 
 class AgronomistAgent:
     def __init__(self, settings) -> None:
         self.settings = settings
 
-    def explain_alert(self, store, alert_id: str) -> dict | None:
+    def explain_alert(self, store, alert_id: str, narrate: bool = True) -> dict | None:
         path = kg.explain_alert(store, alert_id)
         if not path:
             return None
-        narrative, mode = _narrate(path, self.settings)
+        narrative, mode = _narrate(path, self.settings) if narrate else (_template(path), "mock")
         path["narrative"] = narrative
         path["narration_mode"] = mode
         path["cypher"] = EXPLAIN_CYPHER

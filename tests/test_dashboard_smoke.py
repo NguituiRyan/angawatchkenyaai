@@ -36,10 +36,10 @@ def test_inject_blight_button():
     assert not at.exception, at.exception
 
 
-def test_request_assessment_and_masumi():
+def test_coop_triage_and_masumi():
     at = _run()
-    at.button(key="assess").click().run()
-    assert not at.exception, at.exception
+    # the Co-op triage tab renders the portfolio + a verified report automatically;
+    # hiring the agent via Masumi must not raise
     at.button(key="masumi_pay").click().run()
     assert not at.exception, at.exception
 
@@ -56,7 +56,7 @@ def test_feature_phone_sms_and_box():
     at = _run()
     at.button(key="sms_STATUS").click().run()
     assert not at.exception, at.exception
-    at.button(key="sms_LOAN").click().run()
+    at.button(key="sms_ADVICE").click().run()
     assert not at.exception, at.exception
 
 

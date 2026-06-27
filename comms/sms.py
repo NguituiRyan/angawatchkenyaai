@@ -1,9 +1,9 @@
 """Two-way SMS for feature phones (bilingual EN/SW), reusing the real engine.
 
 A farmer texts a keyword to the Angawatch number and gets an instant reply:
-  STATUS / HALI   -> live greenhouse status + any action alert
-  LOAN / MKOPO    -> credit score, band and limit (a loan officer approves)
-  ALERTS          -> subscribe to push alerts   STOP -> unsubscribe
+  STATUS / HALI    -> live greenhouse status + any action alert
+  ADVICE / USHAURI -> graph-grounded crop diagnosis + top action (officer confirms)
+  ALERTS           -> subscribe to push alerts   STOP -> unsubscribe
   SW / EN         -> set language               HELP -> options
 
 handle_inbound() returns the reply text. An Africa's Talking webhook (the Kenyan
@@ -19,7 +19,7 @@ log = get_logger("comms.sms")
 
 _KW = {
     "status": {"STATUS", "HALI", "STATS"},
-    "loan": {"LOAN", "MKOPO", "CREDIT"},
+    "advice": {"ADVICE", "USHAURI", "DOCTOR", "DAKTARI", "CROP"},
     "subscribe": {"ALERTS", "ARIFA", "ON", "SUBSCRIBE", "JIUNGE"},
     "stop": {"STOP", "ACHA", "OFF"},
     "sw": {"SW", "KISWAHILI", "SWAHILI"},
@@ -63,11 +63,12 @@ def handle_inbound(services, farmer_id: str, text: str) -> dict:
         reply = f"{title}: {body}"
         if top.fired and top.level != "LOW":
             reply += "\n" + i18n.alert_text(top.kind, top.level, lang)
-    elif kind == "loan":
-        from scoring.scorer import CreditScorer
-        a = CreditScorer().score_farmer(store, farmer_id)
-        reply = i18n.ui("loan", lang, score=int(round(a.overall_score)),
-                        band=a.credit["grade"], limit=a.credit["limit"])
+    elif kind == "advice":
+        from agents.advisory import AdvisoryAgent
+        rep = AdvisoryAgent(services.settings).report(store, gh, farm_id=farmer_id, narrate=False)
+        action = rep.recommended_actions[0]["name"] if rep.recommended_actions else "monitor"
+        reply = i18n.ui("advice", lang, diagnosis=rep.diagnosis, action=action,
+                        priority=rep.priority)
     elif kind == "subscribe":
         _update(store, farmer_id, subscribed=True)
         reply = i18n.ui("subscribed", lang)

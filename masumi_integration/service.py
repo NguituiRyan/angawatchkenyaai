@@ -1,9 +1,9 @@
-"""MIP-003 agentic-service endpoints — makes the Credit-Risk Agent a genuine,
+"""MIP-003 agentic-service endpoints — makes the Crop-Health Advisory Agent a genuine,
 discoverable Masumi service (mounted by api/main.py).
 
 Endpoints (MIP-003): GET /availability, GET /input_schema, POST /start_job,
-GET /status, POST /provide_input, GET /demo. The job's work is the deterministic
-credit assessment; its result_hash is what Masumi Decision-Logs on-chain.
+GET /status, POST /provide_input, GET /demo. The job's work is the graph-grounded
+advisory report; its result_hash (the diagnosis + plan) is what Masumi Decision-Logs.
 """
 from __future__ import annotations
 
@@ -12,15 +12,15 @@ def create_mip003_router(services):
     from fastapi import APIRouter
     from pydantic import BaseModel
 
-    from agents.credit_crew import CreditRiskAgent
+    from agents.advisory import AdvisoryAgent
 
     router = APIRouter(prefix="/mip003", tags=["masumi"])
-    agent = CreditRiskAgent(services.settings)
+    agent = AdvisoryAgent(services.settings)
     jobs: dict[str, dict] = {}
 
     class StartJob(BaseModel):
         identifier_from_purchaser: str
-        input_data: dict           # {"farmer_id": "Farmer-A"}
+        input_data: dict           # {"greenhouse_id": "gh-001", "requested_by": "..."}
 
     class ProvideInput(BaseModel):
         job_id: str
@@ -28,22 +28,26 @@ def create_mip003_router(services):
 
     @router.get("/availability")
     def availability() -> dict:
-        return {"available": True, "agent": "Angawatch Credit-Risk Agent",
+        return {"available": True, "agent": "Angawatch Crop-Health Advisory Agent",
                 "status": "operational"}
 
     @router.get("/input_schema")
     def input_schema() -> dict:
-        return {"input_data": {"farmer_id": {"type": "string",
-                "description": "Farmer id to assess, e.g. Farmer-A"}}}
+        return {"input_data": {
+            "greenhouse_id": {"type": "string",
+                              "description": "Greenhouse id to advise, e.g. gh-001"},
+            "requested_by": {"type": "string",
+                             "description": "Hiring co-op / off-taker (optional)"}}}
 
     @router.post("/start_job")
     def start_job(body: StartJob) -> dict:
-        farmer_id = body.input_data.get("farmer_id", services.settings.DEFAULT_FARMER_ID)
-        assessment = agent.assess(services.store, farmer_id)
+        gh_id = body.input_data.get("greenhouse_id", services.settings.DEFAULT_GREENHOUSE_ID)
+        requested_by = body.input_data.get("requested_by")
+        report = agent.report(services.store, gh_id, requested_by=requested_by)
         job_id = "job_" + body.identifier_from_purchaser[:16]
-        jobs[job_id] = {"status": "completed", "result": assessment.to_dict()}
+        jobs[job_id] = {"status": "completed", "result": report.to_dict()}
         return {"job_id": job_id, "status": "completed",
-                "result_hash": assessment.result_hash,
+                "result_hash": report.result_hash,
                 "blockchainIdentifier": body.identifier_from_purchaser}
 
     @router.get("/status")
@@ -56,7 +60,7 @@ def create_mip003_router(services):
 
     @router.get("/demo")
     def demo() -> dict:
-        a = agent.assess(services.store, services.settings.DEFAULT_FARMER_ID, write_audit=False)
-        return {"example": a.to_dict()}
+        r = agent.report(services.store, services.settings.DEFAULT_GREENHOUSE_ID)
+        return {"example": r.to_dict()}
 
     return router

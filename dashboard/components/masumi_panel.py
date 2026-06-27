@@ -8,8 +8,9 @@ from dashboard import theme
 
 def render_masumi(trip: dict, client_mode: str) -> None:
     st.markdown(f"Backend {theme.pill(client_mode)}", unsafe_allow_html=True)
-    st.caption("A SACCO discovers the agent, pays escrow (USDM/ADA on Cardano preprod), the agent "
-               "delivers, and the result hash is Decision-Logged on-chain for audit.")
+    st.caption("The co-op discovers the agent, pays per report (escrow, USDM/ADA on Cardano "
+               "preprod), the agent delivers the diagnosis + plan, and its result hash is "
+               "Decision-Logged on-chain — an auditable record of the advice acted on.")
 
     st.markdown(f"<div class='aw-card'>{theme.stepper(trip['steps'])}</div>", unsafe_allow_html=True)
 

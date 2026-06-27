@@ -4,9 +4,9 @@
   python scripts/run_demo.py --all-mock     # fully offline, every step labeled
 
 Sequence: PREFLIGHT -> SEED -> SIM -> INJECT -> RISK/ALERT/RECORD ->
-          ASSESS (Masumi) -> SCORE -> AUDIT -> SUMMARY
-ASSESS/SCORE/AUDIT are wired in Modules 3 & 5; the AgriFin hero loop (through
-RECORD) is fully live here.
+          TRIAGE -> DIAGNOSE (GraphRAG) -> HIRE+AUDIT (Masumi) -> SUMMARY
+The crop-saving hero loop (through RECORD) is fully live; the advisory agent then
+diagnoses by graph traversal and the co-op hires + audits it via Masumi.
 """
 from __future__ import annotations
 
@@ -105,29 +105,35 @@ def main() -> None:
     else:
         print("\n   (no HIGH alert this run — re-run; event regime is randomized)")
 
-    # 7. ASSESS — lender hires the Credit-Risk Agent ------------------------
-    from agents.credit_crew import CreditRiskAgent
+    # 7. TRIAGE — the co-op hires the Crop-Health Advisory Agent ------------
+    from agents.advisory import AdvisoryAgent
     from logging_setup import tag
     from masumi_integration.client import build_masumi_client
 
-    print(banner("7. LENDER HIRES THE CREDIT-RISK AGENT"))
-    assessment = CreditRiskAgent(settings).assess(services.store, settings.DEFAULT_FARMER_ID)
+    print(banner("7. CO-OP HIRES THE CROP-HEALTH ADVISORY AGENT"))
+    agent = AdvisoryAgent(settings)
+    report = agent.report(services.store, gh, farm_id=settings.DEFAULT_FARMER_ID,
+                          risk_level=(hero_alert or {}).get("level"))
 
-    # 8. SCORE — explainable, multi-factor ----------------------------------
-    print(banner("8. EXPLAINABLE CREDIT SCORE",
-                 [f"score {assessment.overall_score}/100  ->  Credit {assessment.credit['grade']} "
-                  f"({assessment.credit['limit']})  |  Insurance {assessment.insurance['grade']}",
-                  f"confidence: {assessment.confidence['level']} ({assessment.confidence['value']})",
-                  f"narration: {tag(assessment.mode['narration'])} {assessment.mode['narration']}"]))
-    for f in sorted(assessment.factors, key=lambda x: x.contribution, reverse=True):
-        print(f"   {f.label:<40} {f.sub_score:>5.1f}/100  x{f.weight:<4} = +{f.contribution:.2f}")
-    print(f"\n   {assessment.narrative}")
-    print(f"\n   result_hash: {assessment.result_hash}")
+    # 8. DIAGNOSE — graph-grounded, ranked treatment plan -------------------
+    print(banner("8. GRAPHRAG DIAGNOSIS + PLAN",
+                 [f"diagnosis: {report.diagnosis}"
+                  + (f" (caused by {report.pathogen})" if report.pathogen else ""),
+                  f"risk {report.risk_level} -> priority: {report.priority}",
+                  f"evidence (conditions): {', '.join(report.conditions) or 'n/a'}",
+                  f"confidence: {report.confidence['level']} ({report.confidence['value']})",
+                  f"narration: {tag(report.narration_mode)} {report.narration_mode}"]))
+    for t in report.recommended_actions[:5]:
+        warn = ("  ⚠ harms " + ", ".join(t["harmful_to"])) if t.get("harmful_to") else ""
+        print(f"   {t['name']:<32} {t.get('type'):<11} PHI {t.get('phi_days')}d  "
+              f"eff {t.get('edge_efficacy') or t.get('efficacy')}{warn}")
+    print(f"\n   {report.narrative}")
+    print(f"\n   result_hash: {report.result_hash}")
 
-    # 9. AUDIT — pay + deliver + on-chain proof via Masumi ------------------
-    print(banner("9. MASUMI: PAY -> DELIVER -> ON-CHAIN AUDIT"))
+    # 9. HIRE + AUDIT — pay + deliver + on-chain proof via Masumi -----------
+    print(banner("9. MASUMI: HIRE -> PAY -> DELIVER -> ON-CHAIN AUDIT"))
     client = build_masumi_client(settings)
-    trip = client.run_round_trip(assessment, store=services.store)
+    trip = client.run_round_trip(report, store=services.store)
     for s in trip["steps"]:
         print(f"   {tag(s['mode'])} {s['label']:<42} {s['detail']}")
         if s["tx_hash"]:
@@ -137,7 +143,8 @@ def main() -> None:
     # SUMMARY ----------------------------------------------------------------
     print(banner("SUMMARY — Live/Mock matrix"))
     print(_matrix(services, settings))
-    print("\nAgriFin hero loop complete: staged blight -> early HIGH alert -> graph record.\n")
+    print("\nHero loop complete: staged blight -> early HIGH alert -> graph record -> "
+          "graph-grounded advisory -> on-chain audit.\n")
 
 
 def _print_reading(services, gh, out) -> None:

@@ -45,11 +45,12 @@ class MasumiClient:
 
     def _profile(self) -> AgentProfile:
         return AgentProfile(
-            name="Angawatch Credit-Risk Agent",
+            name="Angawatch Crop-Health Advisory Agent",
             api_url="https://angawatch.example/mip003",
-            description="Explainable, multi-factor smallholder agri-credit scoring "
-                        "grounded in a verified Neo4j farm record. Recommends; a loan "
-                        "officer approves.",
+            description="Graph-grounded greenhouse crop-health advisory for tomato: "
+                        "triages farms at risk, diagnoses the disease by traversing an "
+                        "agronomic knowledge graph, and returns a ranked, PHI-aware "
+                        "treatment plan. Hired by cooperatives/off-takers; an agronomist approves.",
             selling_vkey=self.settings.SELLER_VKEY,
             price_amount=self.settings.PAYMENT_AMOUNT,
             price_unit=self.settings.PAYMENT_UNIT,
@@ -62,41 +63,47 @@ class MasumiClient:
                      self._registration.agent_identifier)
         return self._registration
 
-    def run_round_trip(self, assessment, store=None, lender: dict | None = None) -> dict:
-        """Lender discovers -> pays escrow -> agent delivers -> on-chain audit.
+    def run_round_trip(self, report, store=None, requester: dict | None = None) -> dict:
+        """Co-op discovers -> pays escrow -> agent delivers the advisory -> on-chain audit.
 
+        `report` is an AdvisoryReport; its result_hash commits to the diagnosis + plan.
         Returns {steps, audit, registration} for the dashboard stepper.
         """
-        lender = lender or {"id": "lender-1", "name": "Unaitas SACCO", "type": "SACCO"}
+        requester = requester or {"id": "coop-1", "name": "Rift Valley Fresh Co-op",
+                                  "type": "cooperative"}
         reg = self.registration()
         purchaser_id = hashlib.sha256(
-            f"{lender['id']}:{assessment.farmer_id}".encode()).hexdigest()[:32]
+            f"{requester['id']}:{report.greenhouse_id}".encode()).hexdigest()[:32]
         req = self.backend.request_service(
             reg.agent_identifier,
-            input_data={"farmer_id": assessment.farmer_id,
-                        "result_hash": assessment.result_hash},
+            input_data={"greenhouse_id": report.greenhouse_id,
+                        "result_hash": report.result_hash},
             identifier_from_purchaser=purchaser_id,
         )
         escrow = self.backend.pay_escrow(req)
-        submit = self.backend.submit_result(req, assessment.result_hash)
-        audit = self.backend.get_audit_record(req, assessment.result_hash,
-                                              requester=lender.get("name"))
+        submit = self.backend.submit_result(req, report.result_hash)
+        audit = self.backend.get_audit_record(req, report.result_hash,
+                                              requester=requester.get("name"))
 
-        if store is not None:
-            rec = audit.to_props()
-            rec.update({"score": assessment.overall_score, "band": assessment.credit["grade"],
-                        "masumi_mode": audit.mode, "stage": "masumi_audit"})
-            store.add_audit_record(assessment.farmer_id, lender, rec)
+        if store is not None and getattr(report, "farm_id", None):
+            try:
+                rec = audit.to_props()
+                rec.update({"diagnosis": report.diagnosis, "priority": report.priority,
+                            "greenhouse_id": report.greenhouse_id,
+                            "masumi_mode": audit.mode, "stage": "masumi_audit"})
+                store.add_audit_record(report.farm_id, requester, rec)
+            except Exception as exc:  # noqa: BLE001  (graph write must never break the trip)
+                log.warning("audit graph-write skipped: %s", exc)
 
         steps = [
             _step("1. Identity / registration", reg.mode, reg.proof_kind,
                   f"DID {reg.did}", reg.tx_hash, reg.explorer_url),
-            _step("2. Service request (discover & hire)", req.mode, "—",
+            _step("2. Co-op discovers & hires the agent", req.mode, "—",
                   f"job {req.job_id} · {req.amount} {req.unit}", None, None),
             _step("3. Escrow payment (USDM/ADA)", escrow.mode, escrow.proof_kind,
                   f"{escrow.status} · {escrow.amount} {escrow.unit}",
                   escrow.tx_hash, escrow.explorer_url),
-            _step("4. Deliver result + Decision-Log hash", submit.mode, submit.proof_kind,
+            _step("4. Deliver advisory + Decision-Log hash", submit.mode, submit.proof_kind,
                   f"result_hash {submit.result_hash[:16]}…", submit.tx_hash, submit.explorer_url),
             _step("5. On-chain audit trail", audit.mode, audit.proof_kind,
                   f"{audit.status}", audit.tx_hash, audit.explorer_url),

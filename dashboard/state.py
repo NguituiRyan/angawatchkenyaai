@@ -55,19 +55,36 @@ def calm_ticks(services, gh_id: str, n: int = 3) -> list[dict]:
     return [services.tick_and_ingest(gh_id) for _ in range(n)]
 
 
-def assess(services, farmer_id: str):
-    from agents.credit_crew import CreditRiskAgent
-    return CreditRiskAgent(services.settings).assess(services.store, farmer_id)
+def advisory_report(services, gh_id: str, requested_by: str | None = None,
+                    risk_level: str | None = None, farm_id: str | None = None,
+                    narrate: bool = True):
+    """The Crop-Health Advisory Agent's deliverable for one greenhouse."""
+    from agents.advisory import AdvisoryAgent
+    if risk_level is None:
+        try:
+            risk_level = services.engine.evaluate(gh_id).top.level
+        except Exception:  # noqa: BLE001
+            risk_level = None
+    return AdvisoryAgent(services.settings).report(
+        services.store, gh_id, requested_by=requested_by, risk_level=risk_level,
+        farm_id=farm_id, narrate=narrate)
 
 
-def quick_score(services, farmer_id: str) -> dict:
-    """Deterministic score only (no LLM) for the hero finance-readiness gauge."""
-    from scoring.scorer import CreditScorer
-    try:
-        a = CreditScorer().score_farmer(services.store, farmer_id)
-        return {"score": a.overall_score, "grade": a.credit["grade"], "limit": a.credit["limit"]}
-    except Exception:  # noqa: BLE001
-        return {"score": 0, "grade": "—", "limit": "n/a"}
+def coop_triage(services, farms: list[tuple]) -> list[dict]:
+    """Portfolio view for the co-op: a report per greenhouse, sorted by visit priority.
+    farms: list of (farmer_id, gh_id, county). Template-only (no LLM) so it's fast."""
+    from agents.advisory import AdvisoryAgent
+    agent = AdvisoryAgent(services.settings)
+    out = []
+    for farmer_id, gh_id, county in farms:
+        try:
+            lvl = services.engine.evaluate(gh_id).top.level
+        except Exception:  # noqa: BLE001
+            lvl = None
+        rep = agent.report(services.store, gh_id, risk_level=lvl, farm_id=farmer_id, narrate=False)
+        out.append({"farmer_id": farmer_id, "gh_id": gh_id, "county": county, "report": rep})
+    out.sort(key=lambda x: x["report"].priority_rank)
+    return out
 
 
 @st.cache_resource(show_spinner=False)
@@ -76,9 +93,9 @@ def _masumi_client(_settings):
     return build_masumi_client(_settings)
 
 
-def masumi_round_trip(services, assessment):
+def masumi_round_trip(services, report):
     client = _masumi_client(services.settings)
-    return client.run_round_trip(assessment, store=services.store), client.mode
+    return client.run_round_trip(report, store=services.store), client.mode
 
 
 def classify_leaf(services, uploaded_or_path):

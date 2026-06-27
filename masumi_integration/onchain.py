@@ -1,9 +1,10 @@
-"""Real Cardano PREPROD Decision Logging: write the agent's credit result_hash to
+"""Real Cardano PREPROD Decision Logging: write the advisory agent's result_hash to
 on-chain transaction metadata via Blockfrost + pycardano.
 
-This produces a genuine, verifiable transaction (preprod.cardanoscan.io) committing
-the deterministic, multi-factor result — the "verifiable result recorded on-chain"
-pattern. Local-only (needs BLOCKFROST_PROJECT_ID + a funded preprod wallet).
+This produces a genuine, verifiable transaction (preprod.cardanoscan.io) committing the
+agent's diagnosis + treatment plan — the "verifiable result recorded on-chain" pattern,
+doing real work (an auditable record of advice a farmer acted on), not decorating an
+opinion. Local-only (needs BLOCKFROST_PROJECT_ID + a funded preprod wallet).
 """
 from __future__ import annotations
 
@@ -29,8 +30,9 @@ def _context(settings):
                                   base_url=ApiUrls.preprod.value)
 
 
-def record_decision_on_chain(result_hash: str, agent_id: str, farmer: str,
-                             score, band: str, settings=None) -> dict:
+def record_decision_on_chain(result_hash: str, agent_id: str, subject: str,
+                             diagnosis, priority: str, settings=None) -> dict:
+    """Commit an advisory result_hash (diagnosis + plan) to preprod tx metadata."""
     from pycardano import (AuxiliaryData, Metadata, TransactionBuilder,
                            TransactionOutput)
     from config import get_settings
@@ -42,11 +44,11 @@ def record_decision_on_chain(result_hash: str, agent_id: str, farmer: str,
     ctx = _context(settings)
     meta = Metadata({META_LABEL: {
         "app": "Angawatch",
-        "type": "credit-decision-log",
+        "type": "advisory-decision-log",
         "agent": str(agent_id)[:64],
-        "farmer": str(farmer)[:64],
-        "score": str(score)[:64],
-        "band": str(band)[:64],
+        "subject": str(subject)[:64],
+        "diagnosis": str(diagnosis)[:64],
+        "priority": str(priority)[:64],
         "result_hash": str(result_hash)[:64],
     }})
     builder = TransactionBuilder(ctx)

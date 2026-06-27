@@ -1,9 +1,9 @@
 """Sokosumi coworker registration (stretch, +10 bonus).
 
 Sokosumi is the marketplace on top of Masumi where businesses discover & hire AI
-agent "coworkers". This builds the coworker profile for the Angawatch Credit-Risk
-Agent and registers it — REAL against the preprod API when SOKOSUMI_API_KEY is
-set, otherwise a clearly-LABELED mock that prints the exact payload + manual steps
+agent "coworkers". This builds the coworker profile for the Angawatch Crop-Health
+Advisory Agent and registers it — REAL against the preprod API when SOKOSUMI_API_KEY
+is set, otherwise a clearly-LABELED mock that prints the exact payload + manual steps
 (app.sokosumi.com). Run:  python -m masumi_integration.sokosumi
 """
 from __future__ import annotations
@@ -23,24 +23,28 @@ MANUAL_STEPS = [
 
 def build_coworker_profile(settings) -> dict:
     return {
-        "name": "Angawatch Credit-Risk Agent",
-        "description": "Explainable, multi-factor agri-credit scoring for smallholder tomato "
-                       "farmers, grounded in a verified Neo4j farm record. Recommends; a loan "
-                       "officer approves.",
+        "name": "Angawatch Crop-Health Advisory Agent",
+        "description": "Graph-grounded greenhouse crop-health advisory for tomato: triages "
+                       "farms at risk, diagnoses the disease by traversing an agronomic "
+                       "knowledge graph, and returns a ranked, PHI-aware treatment plan. "
+                       "Hired by cooperatives/off-takers; an agronomist approves.",
         "endpoint": settings.AGENT_API_URL,
         "agent_identifier": settings.AGENT_IDENTIFIER or "<register-on-masumi-preprod>",
         "network": settings.NETWORK,
-        "input_schema": {"farmer_id": {"type": "string", "example": "Farmer-A"}},
+        "input_schema": {"greenhouse_id": {"type": "string", "example": "gh-001"},
+                         "requested_by": {"type": "string", "example": "Rift Valley Fresh Co-op"}},
         "output_schema": {
-            "overall_score": {"type": "number"},
-            "credit_band": {"type": "string"},
-            "insurance_band": {"type": "string"},
+            "diagnosis": {"type": "string"},
+            "pathogen": {"type": "string"},
+            "risk_level": {"type": "string"},
+            "priority": {"type": "string"},
+            "recommended_actions": {"type": "array"},
             "confidence": {"type": "string"},
-            "factors": {"type": "array"},
             "result_hash": {"type": "string"},
         },
         "price": {"amount": settings.PAYMENT_AMOUNT, "unit": settings.PAYMENT_UNIT},
-        "tags": ["agri-finance", "credit-scoring", "kenya", "explainable", "human-in-the-loop"],
+        "tags": ["agriculture", "crop-health", "advisory", "kenya", "graphrag",
+                 "human-in-the-loop"],
     }
 
 

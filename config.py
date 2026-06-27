@@ -31,12 +31,18 @@ class Settings(BaseSettings):
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     LLM_MODE: str = "auto"  # auto | live | mock
 
-    # --- Twilio ------------------------------------------------------------
+    # --- Twilio (WhatsApp) -------------------------------------------------
     TWILIO_SID: str | None = None
     TWILIO_TOKEN: str | None = None
     TWILIO_FROM: str = "whatsapp:+14155238886"
     TWILIO_SMS_FROM: str | None = None
     FARMER_PHONE: str | None = None
+
+    # --- Africa's Talking (real Kenya SMS) ---------------------------------
+    AT_USERNAME: str | None = None      # app username from africastalking.com (or "sandbox")
+    AT_API_KEY: str | None = None       # Settings -> API Key
+    AT_SENDER_ID: str | None = None     # optional registered sender ID / shortcode
+    AT_SANDBOX: bool = False            # True -> sandbox (sends to the AT simulator, not a real phone)
 
     # --- Vision ------------------------------------------------------------
     VISION_MODE: str = "auto"  # auto | live | mock
@@ -91,6 +97,10 @@ class Settings(BaseSettings):
 
     def alert_mode(self) -> str:
         return "live" if (self.TWILIO_SID and self.TWILIO_TOKEN) else "mock"
+
+    def at_mode(self) -> str:
+        """Africa's Talking SMS: live when username + api key are present."""
+        return "live" if (self.AT_USERNAME and self.AT_API_KEY) else "mock"
 
     def vision_mode(self) -> str:
         if self.VISION_MODE in ("live", "mock"):

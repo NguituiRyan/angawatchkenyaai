@@ -8,13 +8,42 @@ from logging_setup import get_logger, tag
 log = get_logger("alerts.dispatch")
 
 
+class MultiChannel(AlertChannel):
+    """Fan an alert out to several channels (e.g. WhatsApp + SMS) so the farmer gets it on
+    every configured channel. Reports the channels that actually delivered live."""
+
+    def __init__(self, channels: list[AlertChannel]) -> None:
+        self.channels = channels
+
+    @property
+    def mode(self) -> str:  # type: ignore[override]
+        return "live" if any(getattr(c, "mode", "mock") == "live" for c in self.channels) else "mock"
+
+    def send(self, to: str | None, alert: Alert) -> DeliveryResult:
+        results = [c.send(to, alert) for c in self.channels]
+        live = [r for r in results if r.ok and r.mode == "live"]
+        if live:
+            providers = "+".join(sorted({r.provider for r in live}))
+            detail = "; ".join(f"{r.provider}={r.detail}" for r in live)
+            return DeliveryResult(True, "live", providers, detail)
+        return DeliveryResult(True, "mock", "console", "no live channel — logged to console")
+
+
 def build_channel(settings) -> AlertChannel:
+    """WhatsApp (Twilio) and/or SMS (Africa's Talking) — both fire when both are configured."""
+    channels: list[AlertChannel] = []
     if settings.alert_mode() == "live":
         from alerts.twilio_channel import TwilioChannel
-        log.info("%s alert channel: Twilio WhatsApp/SMS", tag("live"))
-        return TwilioChannel(settings)
-    log.info("%s alert channel: console (no Twilio creds)", tag("mock"))
-    return ConsoleChannel()
+        channels.append(TwilioChannel(settings))
+    if settings.at_mode() == "live":
+        from alerts.africas_talking_channel import AfricasTalkingChannel
+        channels.append(AfricasTalkingChannel(settings))
+    if not channels:
+        log.info("%s alert channel: console (no Twilio / Africa's Talking creds)", tag("mock"))
+        return ConsoleChannel()
+    names = " + ".join(type(c).__name__.replace("Channel", "") for c in channels)
+    log.info("%s alert channel(s): %s", tag("live"), names)
+    return channels[0] if len(channels) == 1 else MultiChannel(channels)
 
 
 def alert_from_rule(gh_id: str, result, ts: str, lead_time_hr: float = 24.0,

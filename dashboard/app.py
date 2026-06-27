@@ -97,7 +97,8 @@ def render_landing() -> None:
         f"<span style='color:var(--faint);font-size:.78rem'>live:</span>"
         f"{theme.pill(services.store.mode,'Neo4j · '+services.store.mode)}"
         f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}"
-        f"{theme.pill(services.channel.mode,'Alerts · '+services.channel.mode)}"
+        f"{theme.pill(settings.alert_mode(),'WhatsApp · '+settings.alert_mode())}"
+        f"{theme.pill(settings.at_mode(),'SMS · '+settings.at_mode())}"
         f"{theme.pill('real' if getattr(settings,'MASUMI_PRERECORDED_TX',None) else 'mock','Masumi')}"
         f"</div>", unsafe_allow_html=True)
 
@@ -522,7 +523,8 @@ with st.sidebar:
         st.markdown(
             f"**Live status**<br>"
             f"{theme.pill(services.store.mode,'Graph · '+services.store.mode)}<br>"
-            f"{theme.pill(services.channel.mode,'Alerts · '+services.channel.mode)}<br>"
+            f"{theme.pill(settings.alert_mode(),'WhatsApp · '+settings.alert_mode())}<br>"
+            f"{theme.pill(settings.at_mode(),'SMS · '+settings.at_mode())}<br>"
             f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}<br>{_mpill}",
             unsafe_allow_html=True)
         st.divider()

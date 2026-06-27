@@ -1,10 +1,11 @@
-"""Angawatch lender dashboard (Streamlit) — light agri-SaaS UI.
+"""Angawatch dashboard (Streamlit) — light agri-SaaS UI.
 
   streamlit run dashboard/app.py
 
-Greenhouse-monitoring + farm-to-finance: the farmer's verified Neo4j record, a
-live sensor feed with a staged blight event, an explainable credit assessment,
-and the Masumi round-trip. Every capability shows a LIVE/MOCK badge.
+A role-select landing gates the app: pick FARMER or CO-OP and see only that user's
+tabs, so each flow is clean to follow. Farmer = phone-first crop-saving; Co-op = portfolio
+triage, GraphRAG diagnosis, the verified Neo4j record, and hiring the agent via Masumi.
+Every capability shows a LIVE/MOCK badge.
 """
 from __future__ import annotations
 
@@ -20,11 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # Streamlit Cloud hot-reloads app.py but NOT changed sub-modules — so a new app.py can
 # run against stale cached modules and crash until a manual reboot. Force-refresh the
-# fast-changing, STATELESS code each run so signature changes can never crash the deployed
-# app between push and reboot. graph.kg / graph.agronomy are the agronomic-ontology
-# traversals (the store is passed in, so they hold no connection) — refreshed too. NOT
-# refreshed: dashboard.services_cache / services / graph.store / graph.seed / config — they
-# hold the @st.cache_resource Services + the live Neo4j connection, which must persist.
+# fast-changing, STATELESS code each run. NOT refreshed: dashboard.services_cache / services
+# / graph.store / graph.seed / config — they hold the cached Services + Neo4j connection.
 _REFRESH = ("dashboard.theme", "dashboard.state", "dashboard.components",
             "agents", "masumi_integration", "comms", "graph.kg", "graph.agronomy")
 for _m in [m for m in list(sys.modules)
@@ -43,7 +41,7 @@ from dashboard.state import (advisory_a2a, advisory_answer,  # noqa: E402
                              sms_reply, sokosumi_marketplace)
 from dashboard import theme                                       # noqa: E402
 
-st.set_page_config(page_title="Angawatch — Greenhouse Monitoring", page_icon="🌱", layout="wide")
+st.set_page_config(page_title="Angawatch", page_icon="🌱", layout="wide")
 theme.inject_theme()
 
 services = get_services()
@@ -51,66 +49,69 @@ settings = services.settings
 FARMERS = {"Farmer-A": ("gh-001", "Nakuru"), "Farmer-B": ("gh-002", "Kiambu"),
            "Farmer-C": ("gh-003", "Kajiado")}
 
-# --------------------------------------------------------------- sidebar ----
-with st.sidebar:
-    st.markdown(f"### {theme.icon('leaf',18)} Angawatch", unsafe_allow_html=True)
-    farmer_id = st.selectbox("Farmer", list(FARMERS), index=0)
-    gh_id, county = FARMERS[farmer_id]
-    st.markdown(f"<span class='aw-hash'>greenhouse {gh_id} · {county}</span>", unsafe_allow_html=True)
-    st.divider()
-    st.markdown("**Demo flow** — what to do")
-    sb_flow = st.container()   # vertical progress tracker, filled at end of the run
-    st.divider()
-    # inline (not settings.masumi_status()) so a hot-reload with a cached config
-    # module can't crash the app on a newly-added method
-    _mstat = ("real" if settings.masumi_mode() == "real"
-              else "hybrid" if getattr(settings, "MASUMI_PRERECORDED_TX", None) else "mock")
-    _mlabel = {"real": "Masumi · real preprod",
-               "hybrid": "Masumi · on-chain proof ✓",
-               "mock": "Masumi · mock"}[_mstat]
-    _mpill = theme.pill("real" if _mstat in ("real", "hybrid") else "mock", _mlabel)
+
+# ============================================================ LANDING ========
+def render_landing() -> None:
     st.markdown(
-        f"**Live status**<br>"
-        f"{theme.pill(services.store.mode,'Graph · '+services.store.mode)}<br>"
-        f"{theme.pill(services.channel.mode,'Alerts · '+services.channel.mode)}<br>"
-        f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}<br>"
-        f"{_mpill}",
-        unsafe_allow_html=True)
-    st.divider()
-    if st.button("↺ Reset demo", use_container_width=True, key="reset"):
-        for _k in ("last_run", "assessment", "masumi", "advice", "warmed"):
-            st.session_state.pop(_k, None)
-        st.rerun()
-    st.caption("Mocks are labeled 🟠. Nothing here hides a mock — that's the point.")
+        f"<div style='text-align:center;margin:18px 0 6px'>"
+        f"<div style='font-size:1.9rem;font-weight:800;color:var(--fg)'>"
+        f"<span class='aw-logo'>{theme.icon('leaf',26)}</span> Angawatch</div>"
+        f"<p style='color:var(--muted);font-size:1rem;margin-top:4px'>Greenhouse intelligence — "
+        f"choose how to explore the demo.</p></div>", unsafe_allow_html=True)
 
-if "warmed" not in st.session_state:
-    calm_ticks(services, gh_id, n=4)
-    st.session_state.warmed = True
+    def card(color, ic, title, sub, rows):
+        items = "".join(
+            f"<div style='font-size:.9rem;color:var(--fg);margin:7px 0'>"
+            f"<span style='color:var(--muted)'>{theme.icon(i,15)}</span> &nbsp;{lbl}</div>"
+            for i, lbl in rows)
+        return (f"<div class='aw-card' style='border-top:5px solid {color};height:100%'>"
+                f"<div style='width:46px;height:46px;border-radius:50%;background:{color}22;"
+                f"display:flex;align-items:center;justify-content:center;margin-bottom:10px;"
+                f"color:{color}'>{theme.icon(ic,24)}</div>"
+                f"<div style='font-size:1.15rem;font-weight:800;color:var(--fg)'>{title}</div>"
+                f"<div style='color:var(--muted);font-size:.85rem;margin-bottom:10px'>{sub}</div>"
+                f"{items}</div>")
 
-# ---------------------------------------------------------------- topbar ----
-alerts_n = len(services.store.list_alerts(gh_id, limit=20))
-theme.topbar("Greenhouse Monitoring",
-             "Angawatch — early crop-saving alerts + a graph-grounded crop-health advisory a co-op hires via Masumi",
-             datetime.now().strftime("%a %H:%M"), alerts=alerts_n)
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        st.markdown(card("#54B435", "leaf", "I'm a farmer", "Phone-first, simple",
+                         [("thermo", "My greenhouse"), ("scan", "Leaf scan"),
+                          ("activity", "My phone — SMS / WhatsApp")]), unsafe_allow_html=True)
+        if st.button("Enter as farmer  →", key="role_farmer", type="primary",
+                     use_container_width=True):
+            st.session_state.role = "farmer"
+            st.rerun()
+    with c2:
+        st.markdown(card("#3B82F6", "bank", "I'm a cooperative", "Triage, diagnose, hire",
+                         [("shield", "Farm triage & hire (Masumi)"),
+                          ("spark", "Crop doctor — graph reasoning"),
+                          ("link", "Verified record (Neo4j)"), ("scan", "Leaf scan")]),
+                    unsafe_allow_html=True)
+        if st.button("Enter as co-op  →", key="role_coop", type="primary",
+                     use_container_width=True):
+            st.session_state.role = "coop"
+            st.rerun()
 
-# ------- precompute hero/snapshot (rendered inside the Farm tab) -------------
-latest = (services.store.list_recent_readings(gh_id, limit=1) or [{}])[0]
-engine_risk = None
-try:
-    engine_risk = services.engine.evaluate(gh_id).top
-except Exception:  # noqa: BLE001
-    pass
-risk_level = engine_risk.level if engine_risk else "LOW"
-risk_kind = engine_risk.kind if engine_risk else "—"
-snapshot = advisory_report(services, gh_id, farm_id=farmer_id, risk_level=risk_level, narrate=False)
+    st.markdown(
+        f"<div style='display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px'>"
+        f"<span style='color:var(--faint);font-size:.78rem'>live:</span>"
+        f"{theme.pill(services.store.mode,'Neo4j · '+services.store.mode)}"
+        f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}"
+        f"{theme.pill(services.channel.mode,'Alerts · '+services.channel.mode)}"
+        f"{theme.pill('real' if getattr(settings,'MASUMI_PRERECORDED_TX',None) else 'mock','Masumi')}"
+        f"</div>", unsafe_allow_html=True)
 
-# ---- primary navigation: big, high, stunning (the main thing) --------------
-tab_farm, tab_doctor, tab_coop, tab_advice, tab_phone = st.tabs(
-    ["🌡️  Farm record & live feed", "🧠  Crop doctor (GraphRAG)", "🤝  Co-op triage & hire",
-     "🍃  Leaf scan & advisor", "📱  Feature phone & offline"])
 
-# ============================================================ FARM TAB ======
-with tab_farm:
+# ===================================================== TAB BODIES ============
+def render_my_greenhouse(gh_id: str, county: str, farmer_id: str) -> None:
+    latest = (services.store.list_recent_readings(gh_id, limit=1) or [{}])[0]
+    try:
+        top = services.engine.evaluate(gh_id).top
+        risk_level, risk_kind = top.level, top.kind
+    except Exception:  # noqa: BLE001
+        risk_level, risk_kind = "LOW", "—"
+    snapshot = advisory_report(services, gh_id, farm_id=farmer_id, risk_level=risk_level, narrate=False)
+
     hcol, gcol = st.columns([2, 1], gap="large")
     with hcol:
         theme.hero_conditions(gh_id, county, latest, datetime.now().strftime("%a %d %b"),
@@ -121,18 +122,14 @@ with tab_farm:
                    if snapshot.recommended_actions else "Monitor conditions")
         st.markdown(
             f'<div class="aw-card" style="height:100%"><div class="aw-section" style="margin-bottom:10px">'
-            f'<span class="ic">{theme.icon("spark",18)}</span><div><h3>Advisory snapshot</h3>'
-            f'<p>graph-grounded crop-health for this farm</p></div></div>'
+            f'<span class="ic">{theme.icon("spark",18)}</span><div><h3>What to do</h3>'
+            f'<p>graph-grounded advice for your farm</p></div></div>'
             f'<div style="font-size:.72rem;color:var(--faint);font-family:JetBrains Mono,monospace">DIAGNOSIS</div>'
             f'<div style="font-size:1.3rem;font-weight:800;color:var(--fg);line-height:1.15">{snapshot.diagnosis}</div>'
             f'<div style="margin:10px 0"><span style="background:{_tone};color:#fff;border-radius:9px;'
             f'padding:5px 11px;font-weight:700;font-size:.8rem">{snapshot.priority}</span></div>'
             f'<div style="font-size:.72rem;color:var(--faint);font-family:JetBrains Mono,monospace">TOP ACTION</div>'
-            f'<div style="font-weight:600;color:var(--fg)">{_topact}</div>'
-            f'<p style="color:var(--muted);font-size:.82rem;margin-top:12px">A co-op hires this '
-            f'advisory agent via Masumi to triage farms and get an auditable diagnosis — see '
-            f'<b>Co-op triage &amp; hire</b>.</p>'
-            f'</div>', unsafe_allow_html=True)
+            f'<div style="font-weight:600;color:var(--fg)">{_topact}</div></div>', unsafe_allow_html=True)
 
     st.markdown(
         "<div class='aw-card' style='border-left:4px solid var(--brand);background:var(--surface-2);"
@@ -145,59 +142,55 @@ with tab_farm:
         unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    left, right = st.columns([3, 2], gap="large")
-    with left:
-        theme.section("Verified farm record", "Neo4j graph: readings → alerts "
-                      "(TRIGGERED_BY) → actions → harvests.", "shield")
-        render_graph(services.store, farmer_id)
+    theme.section("Live sensor feed", "Stage a blight event and watch the alert fire.", "activity")
+    b1, b2, _ = st.columns([1, 1, 2])
+    if b1.button("Stream calm readings", key="calm", use_container_width=True):
+        calm_ticks(services, gh_id, n=3)
+    if b2.button("Inject blight event", type="primary", key="inject", use_container_width=True):
+        _alang = "sw" if st.session_state.get("phone_lang") == "Kiswahili" else "en"
+        st.session_state.last_run = inject_and_run(services, gh_id, lang=_alang)
 
-    with right:
-        theme.section("Live sensor feed", "Stage a blight event and watch the alert fire.",
-                      "activity")
-        b1, b2 = st.columns(2)
-        if b1.button("Stream calm readings", key="calm", use_container_width=True):
-            calm_ticks(services, gh_id, n=3)
-        if b2.button("Inject blight event", type="primary", key="inject",
-                     use_container_width=True):
-            _alang = "sw" if st.session_state.get("phone_lang") == "Kiswahili" else "en"
-            st.session_state.last_run = inject_and_run(services, gh_id, lang=_alang)
+    run = st.session_state.get("last_run")
+    fired = next((r["alert"] for r in (run or []) if r.get("alert")), None)
+    if fired:
+        st.caption("📲 The farmer instantly receives this WhatsApp/SMS — simple + what to do:")
+        theme.alert_card(fired["level"], fired["kind"], fired["message"],
+                         fired["delivery"], fired["provider"])
+        if fired.get("reason"):
+            st.caption(f"Why it fired (on record): {fired['reason']}")
 
-        run = st.session_state.get("last_run")
-        fired = next((r["alert"] for r in (run or []) if r.get("alert")), None)
-        if fired:
-            st.caption("📲 The farmer instantly receives this WhatsApp/SMS — simple + what to do:")
-            theme.alert_card(fired["level"], fired["kind"], fired["message"],
-                             fired["delivery"], fired["provider"])
-            if fired.get("reason"):
-                st.caption(f"Why it fired (on record): {fired['reason']}")
+    readings = services.store.list_recent_readings(gh_id, limit=12)
+    if readings:
+        df = pd.DataFrame(readings)[["ts", "humidity", "temp_c", "leaf_wetness_hr", "trap_count"]]
+        df["ts"] = df["ts"].astype(str).str[11:16]
+        lat = readings[0]
+        theme.kpis([
+            {"label": "Humidity", "value": f"{lat.get('humidity'):.0f}%", "icon": "drop",
+             "sub": "RH ≥90% favours blight", "tone": "fill"},
+            {"label": "Air temp", "value": f"{lat.get('temp_c'):.0f}°C", "icon": "thermo",
+             "sub": "blight band 10–26°C"},
+            {"label": "Leaf wetness", "value": f"{lat.get('leaf_wetness_hr'):.0f}h", "icon": "sun",
+             "sub": "trailing window"},
+            {"label": "Pest trap", "value": f"{lat.get('trap_count')}", "icon": "bug",
+             "sub": "males/trap/week"},
+        ])
+        st.caption("Humidity vs air temp over recent readings — sustained RH ≥90% in the "
+                   "10–26°C band drives blight risk")
+        theme.feed_chart(df.iloc[::-1])
 
-        readings = services.store.list_recent_readings(gh_id, limit=12)
-        if readings:
-            df = pd.DataFrame(readings)[["ts", "humidity", "temp_c", "leaf_wetness_hr", "trap_count"]]
-            df["ts"] = df["ts"].astype(str).str[11:16]
-            lat = readings[0]
-            theme.kpis([
-                {"label": "Humidity", "value": f"{lat.get('humidity'):.0f}%", "icon": "drop",
-                 "sub": "RH ≥90% favours blight", "tone": "fill"},
-                {"label": "Air temp", "value": f"{lat.get('temp_c'):.0f}°C", "icon": "thermo",
-                 "sub": "blight band 10–26°C"},
-                {"label": "Leaf wetness", "value": f"{lat.get('leaf_wetness_hr'):.0f}h", "icon": "sun",
-                 "sub": "trailing window"},
-                {"label": "Pest trap", "value": f"{lat.get('trap_count')}", "icon": "bug",
-                 "sub": "males/trap/week"},
-            ])
-            st.caption("Humidity (green) vs air temp (amber) over recent readings — sustained "
-                       "RH ≥90% in the 10–26°C band drives blight risk")
-            theme.feed_chart(df.iloc[::-1])
 
-        alerts = services.store.list_alerts(gh_id, limit=5)
-        if alerts:
-            st.caption("Recent alerts on record")
-            adf = pd.DataFrame(alerts)[["ts", "kind", "level", "delivery"]]
-            st.dataframe(adf, hide_index=True, use_container_width=True, height=150)
+def render_verified_record(farmer_id: str, gh_id: str) -> None:
+    theme.section("Verified farm record", "Neo4j graph: readings → alerts (TRIGGERED_BY) → "
+                  "actions → harvests. The auditable history a lender or insurer can trust.", "shield")
+    render_graph(services.store, farmer_id)
+    alerts = services.store.list_alerts(gh_id, limit=6)
+    if alerts:
+        st.caption("Recent alerts on record")
+        adf = pd.DataFrame(alerts)[["ts", "kind", "level", "delivery"]]
+        st.dataframe(adf, hide_index=True, use_container_width=True, height=180)
 
-# ====================================================== CROP DOCTOR TAB =====
-with tab_doctor:
+
+def render_crop_doctor(gh_id: str) -> None:
     theme.section("Crop doctor — GraphRAG over the agronomic knowledge graph",
                   "“Why was I warned, and what do I do?” The agent TRAVERSES the graph: "
                   "sensor readings → microclimate conditions → disease → pathogen → ranked "
@@ -216,7 +209,7 @@ with tab_doctor:
 
     if not exp:
         st.info("No alerts on record yet for this greenhouse — stage a blight event in the "
-                "**Farm record** tab, then come back.")
+                "farmer view, then come back.")
     else:
         d = exp.get("disease") or {}
         tgt = exp.get("target", {})
@@ -232,8 +225,7 @@ with tab_doctor:
         st.markdown(theme.kg_path(hops), unsafe_allow_html=True)
 
         if exp.get("conditions"):
-            chips = " ".join(
-                f'<span class="aw-tag phi">{c}</span>' for c in exp["conditions"])
+            chips = " ".join(f'<span class="aw-tag phi">{c}</span>' for c in exp["conditions"])
             n_r = len(exp.get("trigger_readings") or [])
             st.markdown(
                 f'<div style="margin:4px 0 10px"><span style="color:var(--muted);font-size:.8rem">'
@@ -242,8 +234,7 @@ with tab_doctor:
 
         st.markdown(theme.pill(exp.get("narration_mode", "mock"),
                                f"agronomist narration · {exp.get('narration_mode','mock')} · "
-                               f"graph backend {exp.get('backend','memory')}"),
-                    unsafe_allow_html=True)
+                               f"graph backend {exp.get('backend','memory')}"), unsafe_allow_html=True)
         _narr = (exp.get("narrative", "") or "").replace("**", "").replace("*", "")
         st.markdown(f"<div class='aw-card' style='margin:8px 0 14px'>{_narr}</div>",
                     unsafe_allow_html=True)
@@ -305,8 +296,8 @@ with tab_doctor:
         st.markdown(f"<div class='aw-card' style='margin-top:8px'><b>Answer.</b> {html.escape(_ans)}</div>",
                     unsafe_allow_html=True)
 
-# ========================================================= CO-OP TRIAGE =====
-with tab_coop:
+
+def render_coop_triage() -> None:
     theme.section("Co-op crop-health triage — the buyer's view",
                   "A horticulture co-op / off-taker contracts hundreds of greenhouses but has only "
                   "a few field officers. The agent monitors every farm, TRIAGES who's at risk, and "
@@ -343,11 +334,9 @@ with tab_coop:
                   "Co-op discovers → pays per report (escrow USDM/ADA) → deliver → on-chain audit.", "link")
     _can_live = bool(getattr(settings, "onchain_live", lambda: False)())
     live_oc = st.checkbox("Commit the Decision-Log LIVE on-chain this run (real preprod tx, ~20s)",
-                          value=False, key="masumi_live",
-                          disabled=not _can_live,
-                          help=("Submits a fresh, verifiable Cardano preprod transaction with this "
-                                "report's result_hash. Requires a funded wallet + Blockfrost + "
-                                "MASUMI_ONCHAIN_LIVE=1." if not _can_live else
+                          value=False, key="masumi_live", disabled=not _can_live,
+                          help=("Requires a funded wallet + Blockfrost + MASUMI_ONCHAIN_LIVE=1."
+                                if not _can_live else
                                 "Submits a fresh, verifiable Cardano preprod transaction now."))
     if st.button("Pay & deliver via Masumi", type="primary", key="masumi_pay"):
         with st.spinner("Discovering agent → escrow payment → deliver advisory → audit…"):
@@ -359,9 +348,9 @@ with tab_coop:
 
         st.divider()
         theme.section("Agent-to-agent — the advisory agent hires a second agent",
-                      "To complete the plan, the Advisory Agent itself becomes a buyer on Masumi: "
-                      "it hires the AgroInput Price Agent to source the recommended product's price "
-                      "and availability — agent-to-agent coordination, not just human→agent.", "link")
+                      "To complete the plan, the Advisory Agent itself becomes a buyer on Masumi: it "
+                      "hires the AgroInput Price Agent to source the recommended product's price — "
+                      "agent-to-agent coordination, not just human→agent.", "link")
         if st.button("Run agent-to-agent (source the input price)", key="a2a_run"):
             with st.spinner("Advisory agent discovering & paying the Price Agent…"):
                 st.session_state.a2a = (advisory_a2a(services, rep), rep.greenhouse_id)
@@ -394,11 +383,11 @@ with tab_coop:
                     unsafe_allow_html=True)
         if soko["marketplace"]:
             scols = st.columns(2)
-            for i, ag in enumerate(soko["marketplace"][:6]):
-                cred = f"{ag['credits']} credits" if ag.get("credits") is not None else "—"
+            for i, agc in enumerate(soko["marketplace"][:6]):
+                cred = f"{agc['credits']} credits" if agc.get("credits") is not None else "—"
                 scols[i % 2].markdown(
                     f"<div class='aw-tag tt' style='display:inline-block;margin:3px 0'>"
-                    f"{html.escape(str(ag['name']))}</div> "
+                    f"{html.escape(str(agc['name']))}</div> "
                     f"<span style='color:var(--faint);font-size:.74rem'>{cred}</span>",
                     unsafe_allow_html=True)
         p = soko["profile"]
@@ -411,8 +400,8 @@ with tab_coop:
             for s in soko["listing_plan"]:
                 st.markdown(f"- {s}")
 
-# ========================================================== ADVICE TAB ======
-with tab_advice:
+
+def render_leaf_scan(farmer_id: str) -> None:
     vcol, acol = st.columns(2, gap="large")
     with vcol:
         theme.section("Leaf disease scan", "Pre-trained PlantVillage tomato classifier "
@@ -435,7 +424,6 @@ with tab_advice:
             ])
             st.markdown(f"<span class='aw-hash'>confidence {d.confidence} · "
                         f"label {d.raw_label}</span>", unsafe_allow_html=True)
-
     with acol:
         theme.section("Ask the advisor (GraphRAG)", f"Grounded in {farmer_id}'s own farm record.",
                       "spark")
@@ -450,16 +438,16 @@ with tab_advice:
             st.markdown(f"<div class='aw-card' style='margin-top:10px'>{adv['answer']}</div>",
                         unsafe_allow_html=True)
 
-# ========================================================== PHONE TAB =======
-with tab_phone:
+
+def render_phone(farmer_id: str, gh_id: str) -> None:
     theme.section("Feature-phone & offline reach",
                   "Many smallholders use basic phones in low-signal areas. The SAME risk engine "
-                  "and credit score, delivered over SMS or an offline in-greenhouse box.", "activity")
+                  "and advisory, delivered over SMS or an offline in-greenhouse box.", "activity")
     lang_label = st.radio("Language / Lugha", ["English", "Kiswahili"], horizontal=True,
                           key="phone_lang")
     lang = "sw" if lang_label == "Kiswahili" else "en"
     if st.session_state.get("_lang_for") != (farmer_id, lang):
-        set_language(services, farmer_id, lang)   # only write when it actually changes
+        set_language(services, farmer_id, lang)
         st.session_state._lang_for = (farmer_id, lang)
 
     pcol, ocol = st.columns(2, gap="large")
@@ -499,22 +487,115 @@ with tab_phone:
         st.info("🛰️ Hardware path (real seam): ESP32 + 7-in-1 soil sensor + DHT22 + GSM → "
                 "POST /ingest. See docs for the BOM + connectivity ladder.")
 
-# ---------------------------------------------- guided progress + footer ----
-_run = st.session_state.get("last_run")
-_has_alert = bool(_run and any(r.get("alert") for r in _run))
-_has_doctor = bool(st.session_state.get("kg_exp"))
-_has_advisory = bool(st.session_state.get("coop_rep"))
-_has_masumi = bool(st.session_state.get("masumi"))
-_flow = [
-    ("Verified farm record", "done"),
-    ("Blight alert fires", "done" if _has_alert else "active"),
-    ("GraphRAG crop diagnosis", "done" if _has_doctor else ("active" if _has_alert else "")),
-    ("Co-op triage + advisory", "done" if _has_advisory else ("active" if _has_doctor else "")),
-    ("Hire & on-chain audit (Masumi)", "done" if _has_masumi else ("active" if _has_advisory else "")),
-]
-with sb_flow:
-    try:
-        theme.flow_steps(_flow, vertical=True)
-    except TypeError:                # stale cached theme without the vertical kwarg
-        theme.flow_steps(_flow)
+
+# ============================================================ SIDEBAR ========
+role = st.session_state.get("role")
+sb_flow = None
+farmer_id, gh_id, county = "Farmer-A", "gh-001", "Nakuru"
+
+with st.sidebar:
+    st.markdown(f"### {theme.icon('leaf',18)} Angawatch", unsafe_allow_html=True)
+    if role:
+        st.markdown(theme.pill("real" if role == "coop" else "live",
+                               ("Cooperative view" if role == "coop" else "Farmer view")),
+                    unsafe_allow_html=True)
+        if st.button("↺ Switch role", use_container_width=True, key="switch_role"):
+            st.session_state.role = None
+            st.rerun()
+        st.divider()
+        if role == "coop":
+            farmer_id = st.selectbox("Member greenhouse", list(FARMERS), index=0)
+            gh_id, county = FARMERS[farmer_id]
+            st.markdown(f"<span class='aw-hash'>greenhouse {gh_id} · {county}</span>",
+                        unsafe_allow_html=True)
+        else:
+            farmer_id, (gh_id, county) = "Farmer-A", FARMERS["Farmer-A"]
+            st.markdown(f"<span class='aw-hash'>your greenhouse {gh_id} · {county}</span>",
+                        unsafe_allow_html=True)
+        st.divider()
+        st.markdown("**Demo flow** — what to do")
+        sb_flow = st.container()
+        st.divider()
+        _mpill = theme.pill("real" if getattr(settings, "MASUMI_PRERECORDED_TX", None) else "mock",
+                            "Masumi · on-chain proof ✓" if getattr(settings, "MASUMI_PRERECORDED_TX", None)
+                            else "Masumi · mock")
+        st.markdown(
+            f"**Live status**<br>"
+            f"{theme.pill(services.store.mode,'Graph · '+services.store.mode)}<br>"
+            f"{theme.pill(services.channel.mode,'Alerts · '+services.channel.mode)}<br>"
+            f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}<br>{_mpill}",
+            unsafe_allow_html=True)
+        st.divider()
+        if st.button("↺ Reset demo", use_container_width=True, key="reset"):
+            for _k in ("last_run", "kg_exp", "kg_for", "coop_rep", "coop_rep_key", "masumi",
+                       "a2a", "advice", "agentic", "sms_thread", "warmed"):
+                st.session_state.pop(_k, None)
+            st.rerun()
+        st.caption("Mocks are labeled 🟠 — nothing here hides a mock.")
+    else:
+        st.caption("Choose a role on the right to begin →")
+
+# ---- role gate: landing first, every load ----------------------------------
+if not role:
+    render_landing()
+    st.stop()
+
+if "warmed" not in st.session_state:
+    calm_ticks(services, gh_id, n=4)
+    st.session_state.warmed = True
+
+# ---------------------------------------------------------------- topbar -----
+if role == "farmer":
+    theme.topbar("My greenhouse",
+                 "Angawatch — your crop is watched day and night; you get a simple alert in time to act.")
+else:
+    theme.topbar("Co-op console",
+                 "Triage your contracted greenhouses, diagnose by knowledge graph, and hire the "
+                 "advisory agent via Masumi.")
+
+# ---- primary navigation: only the tabs this role needs ----------------------
+if role == "farmer":
+    t_green, t_leaf, t_phone = st.tabs(["🌡️  My greenhouse", "🍃  Leaf scan", "📱  My phone"])
+    with t_green:
+        render_my_greenhouse(gh_id, county, farmer_id)
+    with t_leaf:
+        render_leaf_scan(farmer_id)
+    with t_phone:
+        render_phone(farmer_id, gh_id)
+else:
+    t_triage, t_doctor, t_record, t_leaf = st.tabs(
+        ["🤝  Farm triage & hire", "🧠  Crop doctor (GraphRAG)", "🛡️  Verified record",
+         "🍃  Leaf scan"])
+    with t_triage:
+        render_coop_triage()
+    with t_doctor:
+        render_crop_doctor(gh_id)
+    with t_record:
+        render_verified_record(farmer_id, gh_id)
+    with t_leaf:
+        render_leaf_scan(farmer_id)
+
+# ---------------------------------------------- guided progress + footer -----
+_has_alert = bool((st.session_state.get("last_run") or []) and
+                  any(r.get("alert") for r in st.session_state["last_run"]))
+if role == "farmer":
+    _flow = [("Live conditions", "done"),
+             ("Blight alert fires", "done" if _has_alert else "active"),
+             ("Advice on your phone", "active" if _has_alert else "")]
+else:
+    _has_doctor = bool(st.session_state.get("kg_exp"))
+    _has_advisory = bool(st.session_state.get("coop_rep"))
+    _has_masumi = bool(st.session_state.get("masumi"))
+    _flow = [
+        ("Triage the farms", "done"),
+        ("GraphRAG diagnosis", "done" if _has_doctor else "active"),
+        ("Verified advisory", "done" if _has_advisory else ("active" if _has_doctor else "")),
+        ("Hire & audit (Masumi)", "done" if _has_masumi else ("active" if _has_advisory else "")),
+    ]
+if sb_flow is not None:
+    with sb_flow:
+        try:
+            theme.flow_steps(_flow, vertical=True)
+        except TypeError:
+            theme.flow_steps(_flow)
 theme.footer()

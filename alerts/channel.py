@@ -10,11 +10,12 @@ class Alert:
     gh_id: str
     kind: str
     level: str
-    message: str
+    message: str                   # farmer-facing, action-first (what to do)
     ts: str
     lead_time_hr: float = 24.0
     channel: str = "whatsapp"
     delivery: str = "pending"      # live | mock | pending
+    reason: str = ""               # technical rule justification (kept on the node)
     id: str | None = None
 
     def to_props(self) -> dict:
@@ -22,6 +23,7 @@ class Alert:
             "greenhouse_id": self.gh_id, "ts": self.ts, "kind": self.kind,
             "level": self.level, "message": self.message, "channel": self.channel,
             "delivery": self.delivery, "lead_time_hr": self.lead_time_hr,
+            "reason": self.reason,
         }
         if self.id:
             d["id"] = self.id

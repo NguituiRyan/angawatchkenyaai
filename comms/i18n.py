@@ -75,6 +75,20 @@ def alert_text(kind: str, level: str, lang: str | None) -> str:
     return f"{t}: {b}"
 
 
+# follow-up nudge so the farmer can pull the full graph-grounded plan over SMS
+FOLLOWUP = {"en": "Reply ADVICE for the full plan.",
+            "sw": "Jibu USHAURI kupata mpango kamili."}
+_DO_NOW = {"en": "Do now", "sw": "Fanya sasa"}
+
+
+def farmer_alert(kind: str, level: str, lang: str | None, gh_id: str = "") -> str:
+    """A short, action-first WhatsApp/SMS alert a farmer can act on (bilingual)."""
+    lang = _lang(lang)
+    title, action = alert_lines(kind, level, lang)
+    head = "Angawatch" + (f" · {gh_id}" if gh_id else "")
+    return f"⚠️ {head}: {title}. {_DO_NOW[lang]}: {action}. {FOLLOWUP[lang]}"
+
+
 def ui(key: str, lang: str | None, **kw) -> str:
     lang = _lang(lang)
     val = UI[key][lang]

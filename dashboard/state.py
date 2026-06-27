@@ -18,12 +18,13 @@ from dashboard.services_cache import (_masumi_client,  # noqa: E402,F401
                                       get_services)
 
 
-def inject_and_run(services, gh_id: str, ticks: int = 9) -> list[dict]:
-    """Inject a blight event then stream ticks; return the per-tick risk results."""
+def inject_and_run(services, gh_id: str, ticks: int = 9, lang: str = "en") -> list[dict]:
+    """Inject a blight event then stream ticks; return the per-tick risk results.
+    The fired alert carries a simple, action-first farmer message (in `lang`)."""
     services.inject(gh_id, "late_blight", ticks=ticks + 2)
     out = []
     for _ in range(ticks):
-        res = services.tick_and_ingest(gh_id)
+        res = services.tick_and_ingest(gh_id, lang=lang)
         out.append(res)
         if res.get("alert") and res["alert"]["level"] == "HIGH":
             break

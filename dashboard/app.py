@@ -148,13 +148,17 @@ with tab_farm:
             calm_ticks(services, gh_id, n=3)
         if b2.button("Inject blight event", type="primary", key="inject",
                      use_container_width=True):
-            st.session_state.last_run = inject_and_run(services, gh_id)
+            _alang = "sw" if st.session_state.get("phone_lang") == "Kiswahili" else "en"
+            st.session_state.last_run = inject_and_run(services, gh_id, lang=_alang)
 
         run = st.session_state.get("last_run")
         fired = next((r["alert"] for r in (run or []) if r.get("alert")), None)
         if fired:
+            st.caption("📲 The farmer instantly receives this WhatsApp/SMS — simple + what to do:")
             theme.alert_card(fired["level"], fired["kind"], fired["message"],
                              fired["delivery"], fired["provider"])
+            if fired.get("reason"):
+                st.caption(f"Why it fired (on record): {fired['reason']}")
 
         readings = services.store.list_recent_readings(gh_id, limit=12)
         if readings:

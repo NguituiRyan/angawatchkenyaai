@@ -41,7 +41,7 @@ class Services:
         self.simulator(gh_id).inject_event(kind, ticks)
 
     # --- the ingest pipeline ----------------------------------------------
-    def ingest(self, reading: Any, gh_id: str | None = None) -> dict:
+    def ingest(self, reading: Any, gh_id: str | None = None, lang: str = "en") -> dict:
         gh_id = gh_id or getattr(reading, "greenhouse_id", None) or \
             (reading.get("greenhouse_id") if isinstance(reading, dict) else None)
         reading_id = self.store.add_reading(gh_id, reading)
@@ -53,20 +53,21 @@ class Services:
             "reason": top.reason, "metrics": top.metrics, "alert": None,
         }
         if assessment.alert_worthy and self._should_alert(gh_id, top):
-            alert = alert_from_rule(gh_id, top, ts=_ts_of(reading))
+            alert = alert_from_rule(gh_id, top, ts=_ts_of(reading), lang=lang)
             alert_id, result = send_alert(
                 self.store, self.channel, alert,
                 triggered_by=top.contributing_reading_ids,
                 to=self.settings.FARMER_PHONE,
             )
             out["alert"] = {"id": alert_id, "level": alert.level, "kind": alert.kind,
-                            "message": alert.message, "delivery": result.mode,
-                            "provider": result.provider, "detail": result.detail}
+                            "message": alert.message, "reason": alert.reason,
+                            "delivery": result.mode, "provider": result.provider,
+                            "detail": result.detail}
         return out
 
-    def tick_and_ingest(self, gh_id: str) -> dict:
+    def tick_and_ingest(self, gh_id: str, lang: str = "en") -> dict:
         reading = self.simulator(gh_id).tick()
-        return self.ingest(reading, gh_id=gh_id)
+        return self.ingest(reading, gh_id=gh_id, lang=lang)
 
     def _should_alert(self, gh_id: str, top) -> bool:
         prev = self._episode.get(gh_id)

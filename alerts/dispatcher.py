@@ -17,10 +17,15 @@ def build_channel(settings) -> AlertChannel:
     return ConsoleChannel()
 
 
-def alert_from_rule(gh_id: str, result, ts: str, lead_time_hr: float = 24.0) -> Alert:
+def alert_from_rule(gh_id: str, result, ts: str, lead_time_hr: float = 24.0,
+                    lang: str = "en") -> Alert:
+    """Build the Alert with a SIMPLE, action-first farmer message (what to do), keeping the
+    technical rule reason on the node for the record/explainability."""
+    from comms import i18n
+    message = i18n.farmer_alert(result.kind, result.level, lang, gh_id=gh_id)
     return Alert(gh_id=gh_id, kind=result.kind, level=result.level,
-                 message=result.reason, ts=ts, lead_time_hr=lead_time_hr,
-                 channel="whatsapp")
+                 message=message, reason=result.reason, ts=ts,
+                 lead_time_hr=lead_time_hr, channel="whatsapp")
 
 
 def send_alert(store, channel: AlertChannel, alert: Alert,

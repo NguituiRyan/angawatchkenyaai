@@ -47,19 +47,29 @@ _OPTIONS = json.dumps({
                     "dragView": False, "zoomView": False, "navigationButtons": False},
 })
 
+# KG-subgraph variant ONLY (same look as the farm graph; just centred physics for the few
+# nodes so the focus disease/pest doesn't drift into a corner). The farm graph is untouched.
+_kg_opts = json.loads(_OPTIONS)
+_kg_opts["physics"] = {
+    "barnesHut": {"gravitationalConstant": -4200, "springLength": 150, "centralGravity": 0.85,
+                  "springConstant": 0.05, "damping": 0.6, "avoidOverlap": 1.0},
+    "stabilization": {"enabled": True, "iterations": 320, "fit": True}, "minVelocity": 0.5,
+}
+_KG_OPTIONS = json.dumps(_kg_opts)
 
-def _render_pyvis(data: dict) -> bool:
+
+def _render_pyvis(data: dict, options: str | None = None, fit_scale: float = 1.0) -> bool:
     try:
         from pyvis.network import Network
     except Exception:  # noqa: BLE001
         return False
     net = Network(height="450px", width="100%", bgcolor="#FFFFFF",
                   font_color="#1B2A1F", directed=True, cdn_resources="remote")
-    net.set_options(_OPTIONS)
+    net.set_options(options or _OPTIONS)
     for n in data["nodes"]:
         color, size = GROUP.get(n["group"], ("#94A3B8", 16))
         net.add_node(n["id"], label=n["label"], color=color, size=size,
-                     title=f"{n['group']}: {n['label']}", group=n["group"])
+                     title=n.get("title") or f"{n['group']}: {n['label']}", group=n["group"])
     for e in data["edges"]:
         net.add_edge(e["source"], e["target"], label=e.get("label", ""), title=e.get("label", ""))
     try:
@@ -68,9 +78,15 @@ def _render_pyvis(data: dict) -> bool:
         html = net.generate_html()
     # round the iframe corners to match our cards
     html = html.replace("<body>", '<body style="margin:0;background:#FFFFFF;border-radius:16px">')
-    # freeze physics once stabilized so the graph stops drifting / leaving the frame
+    # freeze physics once stabilized so the graph stops drifting / leaving the frame.
+    # fit_scale<1 zooms out a touch after fit so wide labels don't clip (KG viz only).
+    if fit_scale == 1.0:
+        fitjs = "network.fit();"
+    else:
+        fitjs = (f"network.fit({{animation:false}});"
+                 f"network.moveTo({{scale:network.getScale()*{fit_scale},animation:false}});")
     freeze = ("<script>setTimeout(function(){try{network.setOptions({physics:false});"
-              "network.fit();}catch(e){}},2600);</script>")
+              + fitjs + "}catch(e){}},2600);</script>")
     html = html.replace("</body>", freeze + "</body>")
     components.html(html, height=466, scrolling=False)
     return True
@@ -96,12 +112,25 @@ def render_graph(store, farmer_id: str) -> None:
         st.json(data)
 
 
+def _short(label: str, n: int = 22) -> str:
+    """Shorten a long KG label for display (drop parentheticals, cap length) so it doesn't
+    clip; the full name stays on hover."""
+    import re
+    s = re.sub(r"\s*\(.*?\)", "", label or "").strip()
+    return (s[: n - 1] + "…") if len(s) > n else s
+
+
 def render_kg(subgraph: dict) -> None:
-    """Render an agronomic knowledge-graph subgraph (disease + neighbours)."""
+    """Render an agronomic knowledge-graph subgraph (disease/pest + neighbours), centred."""
     if not subgraph.get("nodes"):
         st.info("No knowledge-graph data.")
         return
-    if not _render_pyvis(subgraph):
+    # KG-only: centred physics + a fit margin + shortened labels, so the small subgraph
+    # sits framed in the card instead of drifting into a corner. Farm graph is unaffected.
+    disp = {"edges": subgraph["edges"],
+            "nodes": [{**n, "label": _short(n["label"]),
+                       "title": f"{n['group']}: {n['label']}"} for n in subgraph["nodes"]]}
+    if not _render_pyvis(disp, options=_KG_OPTIONS, fit_scale=0.72):
         st.json(subgraph)
         return
     groups = {n["group"] for n in subgraph["nodes"]}

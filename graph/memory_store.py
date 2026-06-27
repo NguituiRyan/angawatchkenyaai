@@ -75,6 +75,13 @@ class InMemoryGraphStore:
         self._alert_actions.setdefault(alert_id, []).append(props["id"])
         return props["id"]
 
+    def update_farmer(self, farmer_id: str, **props) -> bool:
+        for f in self._t["farmers"]:
+            if f["id"] == farmer_id:
+                f.update(props)
+                return True
+        return False
+
     def add_audit_record(self, farmer_id: str, lender: dict, record: Any) -> str:
         props = to_props(record)
         props.setdefault("id", new_id("audit"))
@@ -149,7 +156,10 @@ class InMemoryGraphStore:
             })
 
         return {
-            "farmer": {k: farmer.get(k) for k in ("id", "name", "county", "joined_date")},
+            "farmer": {**{k: farmer.get(k) for k in ("id", "name", "county", "joined_date")},
+                       "language": farmer.get("language"),
+                       "subscribed": farmer.get("subscribed", True),
+                       "phone": farmer.get("phone")},
             "greenhouse": {k: gh.get(k) for k in
                            ("id", "structure_type", "has_netting", "irrigation",
                             "climate_resilience", "area_m2")} if gh else None,

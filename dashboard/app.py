@@ -22,7 +22,8 @@ from dashboard.components.masumi_panel import render_masumi       # noqa: E402
 from dashboard.components.score_card import render_score_card     # noqa: E402
 from dashboard.state import (advisory_answer, assess, calm_ticks,  # noqa: E402
                              classify_leaf, get_services, inject_and_run,
-                             masumi_round_trip, quick_score)
+                             masumi_round_trip, offline_box, quick_score,
+                             set_language, sms_reply)
 from dashboard import theme                                       # noqa: E402
 
 st.set_page_config(page_title="Angawatch — Greenhouse Monitoring", page_icon="🌱", layout="wide")
@@ -98,8 +99,9 @@ with gcol:
         f'Credit-Risk Agent via Masumi to turn this record into an explainable, auditable score.</p>'
         f'</div>', unsafe_allow_html=True)
 
-tab_farm, tab_credit, tab_advice = st.tabs(
-    ["🌡️  Farm record & live feed", "🏦  Credit assessment", "🍃  Leaf scan & advisor"])
+tab_farm, tab_credit, tab_advice, tab_phone = st.tabs(
+    ["🌡️  Farm record & live feed", "🏦  Credit assessment", "🍃  Leaf scan & advisor",
+     "📱  Feature phone & offline"])
 
 # ============================================================ FARM TAB ======
 with tab_farm:
@@ -213,6 +215,51 @@ with tab_advice:
                         unsafe_allow_html=True)
             st.markdown(f"<div class='aw-card' style='margin-top:10px'>{adv['answer']}</div>",
                         unsafe_allow_html=True)
+
+# ========================================================== PHONE TAB =======
+with tab_phone:
+    theme.section("Feature-phone & offline reach",
+                  "Many smallholders use basic phones in low-signal areas. The SAME risk engine "
+                  "and credit score, delivered over SMS or an offline in-greenhouse box.", "activity")
+    lang_label = st.radio("Language / Lugha", ["English", "Kiswahili"], horizontal=True,
+                          key="phone_lang")
+    lang = "sw" if lang_label == "Kiswahili" else "en"
+    set_language(services, farmer_id, lang)
+
+    pcol, ocol = st.columns(2, gap="large")
+    with pcol:
+        st.markdown("**Two-way SMS** — the farmer texts the Angawatch number (no smartphone/data)")
+
+        def _send(text):
+            r = sms_reply(services, farmer_id, text)
+            th = st.session_state.setdefault("sms_thread", [])
+            th.append((farmer_id, "out", text))
+            th.append(("Angawatch", "in", r["reply"]))
+
+        kcols = st.columns(4)
+        for col, (kw, lbl) in zip(kcols, [("STATUS", "Status"), ("LOAN", "Loan"),
+                                          ("ALERTS", "Subscribe"), ("HELP", "Help")]):
+            if col.button(lbl, key=f"sms_{kw}", use_container_width=True):
+                _send(kw)
+        custom = st.text_input("…or type a keyword (STATUS / MKOPO / SW / EN / STOP)", key="sms_in")
+        if st.button("Send SMS", key="sms_send") and custom.strip():
+            _send(custom.strip())
+
+        thread = st.session_state.get("sms_thread", [])
+        if thread:
+            st.markdown(theme.sms_thread(thread[-8:]), unsafe_allow_html=True)
+        else:
+            st.caption("Tap a keyword above to simulate a farmer's SMS.")
+
+    with ocol:
+        st.markdown("**Offline alert box** — ESP-NOW node in the greenhouse, **no internet**")
+        box = offline_box(services, gh_id, lang)
+        st.markdown(theme.offline_device(box), unsafe_allow_html=True)
+        st.caption("When there's no cell signal, the sensor node radios the alert to this in-house "
+                   "box (OLED + LED + buzzer). It caches readings and syncs to /ingest when a "
+                   "signal returns (store-and-forward).")
+        st.info("🛰️ Hardware path (real seam): ESP32 + 7-in-1 soil sensor + DHT22 + GSM → "
+                "POST /ingest. See docs for the BOM + connectivity ladder.")
 
 # ---------------------------------------------- guided progress + footer ----
 _run = st.session_state.get("last_run")

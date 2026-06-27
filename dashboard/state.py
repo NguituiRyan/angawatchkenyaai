@@ -98,3 +98,17 @@ def classify_leaf(services, uploaded_or_path):
 def advisory_answer(services, farmer_id: str, question: str) -> dict:
     from agents.advisory_crew import answer
     return answer(services.settings, services.store, farmer_id, question)
+
+
+def set_language(services, farmer_id: str, lang: str) -> None:
+    services.store.update_farmer(farmer_id, language=lang)
+
+
+def sms_reply(services, farmer_id: str, text: str) -> dict:
+    from comms.sms import handle_inbound
+    return handle_inbound(services, farmer_id, text)
+
+
+def offline_box(services, gh_id: str, lang: str) -> dict:
+    from comms.offline_box import box_for_greenhouse
+    return box_for_greenhouse(services, gh_id, lang)

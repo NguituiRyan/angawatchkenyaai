@@ -246,6 +246,29 @@ p, span, label, li, .stMarkdown{color:var(--fg);}
 hr{border-color:var(--border)!important;}
 ::-webkit-scrollbar{width:9px; height:9px;} ::-webkit-scrollbar-thumb{background:#D6DFCC; border-radius:9px;}
 
+/* offline alert box (simulated ESP32 + OLED + LED + buzzer) */
+.aw-device{background:linear-gradient(180deg,#1b2430,#0f1722); border-radius:18px; padding:15px;
+  border:1px solid #2a3950; box-shadow:var(--shadow); max-width:340px;}
+.aw-dev-top{display:flex; justify-content:space-between; align-items:center; color:#9fb0c4;
+  font-size:.68rem; font-family:'JetBrains Mono',monospace; margin-bottom:11px;}
+.aw-dev-led{width:14px;height:14px;border-radius:999px; box-shadow:0 0 12px 2px currentColor;}
+.aw-oled{background:#04130b; border:1px solid #13241a; border-radius:10px; padding:14px;
+  min-height:74px; box-shadow:inset 0 0 18px rgba(0,255,120,.06);}
+.aw-oled .ol1{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.98rem; line-height:1.3;
+  display:flex; gap:7px; align-items:center;}
+.aw-oled .ol2{font-family:'JetBrains Mono',monospace; font-size:.8rem; opacity:.95; margin-top:5px;}
+.aw-dev-bot{color:#9fb0c4; font-size:.72rem; margin-top:11px; font-family:'JetBrains Mono',monospace;}
+
+/* SMS thread (feature phone) */
+.aw-phone{background:#e7e0d8; border-radius:16px; padding:12px; border:1px solid var(--border);}
+.aw-sms{display:flex; flex-direction:column; gap:8px;}
+.aw-bub{max-width:88%; padding:9px 13px; border-radius:14px; font-size:.9rem; line-height:1.35;
+  white-space:pre-line; box-shadow:0 1px 2px rgba(0,0,0,.08);}
+.aw-bub.out{align-self:flex-end; background:#d6f5c2; color:#13280c; border-bottom-right-radius:4px;}
+.aw-bub.in{align-self:flex-start; background:#fff; color:#1b2a1f; border-bottom-left-radius:4px;}
+.aw-bub .who{display:block; font-size:.64rem; color:var(--faint); margin-bottom:2px;
+  font-family:'JetBrains Mono',monospace;}
+
 @media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important;}}
 </style>
 """
@@ -428,6 +451,26 @@ def footer() -> None:
         'Masumi Business-Agent bounty</span>'
         '<span class="aw-pill live"><span class="dot"></span>Deterministic core · '
         'labeled mocks · human-in-the-loop</span></div>', unsafe_allow_html=True)
+
+
+def offline_device(box: dict) -> str:
+    color = box["led"]
+    return (f'<div class="aw-device"><div class="aw-dev-top">'
+            f'<span>ESP32 · OLED · ESP-NOW (no internet)</span>'
+            f'<span class="aw-dev-led" style="background:{color};color:{color}"></span></div>'
+            f'<div class="aw-oled"><div class="ol1" style="color:{color}">{icon(box["icon"],16)} '
+            f'{html.escape(box["line1"])}</div>'
+            f'<div class="ol2" style="color:{color}">{html.escape(box["line2"])}</div></div>'
+            f'<div class="aw-dev-bot">🔊 buzzer: {html.escape(box["buzzer"])} &nbsp;·&nbsp; '
+            f'LED {html.escape(box["level"])}</div></div>')
+
+
+def sms_thread(messages: list[tuple[str, str, str]]) -> str:
+    """messages = [(who, side, text)] where side in {'in','out'}."""
+    bubs = "".join(
+        f'<div class="aw-bub {side}"><span class="who">{html.escape(who)}</span>'
+        f'{html.escape(text)}</div>' for who, side, text in messages)
+    return f'<div class="aw-phone"><div class="aw-sms">{bubs}</div></div>'
 
 
 def alert_card(level: str, kind: str, message: str, delivery: str, provider: str) -> None:

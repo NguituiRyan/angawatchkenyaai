@@ -153,6 +153,10 @@ class Neo4jGraphStore:
         )
         return props["id"]
 
+    def update_farmer(self, farmer_id: str, **props) -> bool:
+        self._run("MATCH (f:Farmer {id:$id}) SET f += $p", id=farmer_id, p=props)
+        return True
+
     def add_audit_record(self, farmer_id: str, lender: dict, record: Any) -> str:
         props = to_props(record)
         props.setdefault("id", new_id("audit"))
@@ -187,7 +191,7 @@ class Neo4jGraphStore:
             "MATCH (f:Farmer {id:$fid}) "
             "OPTIONAL MATCH (f)-[:OWNS]->(g:Greenhouse) "
             "OPTIONAL MATCH (f)-[:MEMBER_OF]->(co:Cooperative) "
-            "RETURN f{.id,.name,.county,.joined_date} AS farmer, "
+            "RETURN f{.id,.name,.county,.joined_date,.language,.subscribed,.phone} AS farmer, "
             "g{.id,.structure_type,.has_netting,.irrigation,.climate_resilience,.area_m2} AS greenhouse, "
             "co{.id,.name,.region,.members} AS cooperative", fid=farmer_id,
         )

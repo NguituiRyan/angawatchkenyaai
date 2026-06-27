@@ -50,3 +50,11 @@ def test_leaf_scan_and_advisor():
     assert not at.exception, at.exception
     at.button(key="ask").click().run()
     assert not at.exception, at.exception
+
+
+def test_feature_phone_sms_and_box():
+    at = _run()
+    at.button(key="sms_STATUS").click().run()
+    assert not at.exception, at.exception
+    at.button(key="sms_LOAN").click().run()
+    assert not at.exception, at.exception

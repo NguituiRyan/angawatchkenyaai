@@ -361,16 +361,13 @@ def pill(mode: str, label: str | None = None) -> str:
             f'<span class="dot" aria-hidden="true"></span>{html.escape(text)}</span>')
 
 
-def topbar(title: str, subtitle: str, date_label: str, alerts: int = 0) -> None:
+def topbar(title: str, subtitle: str, date_label: str = "", alerts: int = 0) -> None:
+    # date_label / alerts kept for signature compatibility; the decorative chips were
+    # removed (they were non-functional).
     st.markdown(
         f'<div class="aw-topbar"><div class="t"><h2><span class="aw-logo">{icon("leaf",20)}</span>'
-        f'{html.escape(title)}</h2><p>{html.escape(subtitle)}</p></div>'
-        f'<div class="aw-chips">'
-        f'<span class="aw-chip">{icon("search",15)} Search farm record</span>'
-        f'<span class="aw-chip">{icon("sun",15)} {html.escape(date_label)}</span>'
-        f'<span class="aw-chip">{icon("bell",15)} Alerts '
-        + (f'<span class="nbadge">{alerts}</span>' if alerts else "")
-        + '</span></div></div>', unsafe_allow_html=True)
+        f'{html.escape(title)}</h2><p>{html.escape(subtitle)}</p></div></div>',
+        unsafe_allow_html=True)
 
 
 _PLANT_SVG = (

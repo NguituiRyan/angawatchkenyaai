@@ -19,7 +19,7 @@ Goal: a real Cardano **Preprod** transaction hash to show as the audit link.
    select **Preprod** → paste address → receive test ADA (≈1–2 min).
 3. **Register the agent** — open https://explorer.masumi.network/?network=preprod → connect wallet →
    register an agent profile:
-   - Name: `Angawatch Credit-Risk Agent`
+   - Name: `Angawatch Crop-Health Advisory Agent`
    - API URL: your deployed MIP-003 endpoint if you have one (else a placeholder is fine for the
      registration tx) — see Path B to deploy it.
    - Input/output schema + price: use the profile printed by `python -m masumi_integration.sokosumi`.
@@ -74,6 +74,8 @@ during the demo you can also tunnel: `uvicorn api.main:app --port 8000` + `ngrok
 ## What proves it (for judges)
 - A real **agent DID / NFT** on preprod (identity).
 - A real **transaction hash** on `preprod.cardanoscan.io` (payment + Decision-Log of the result hash).
-- The deterministic **`result_hash`** in the assessment matches what's committed — reproducible.
+- The deterministic **`result_hash`** (committing to the advisory diagnosis + plan) matches what's
+  committed on-chain — reproducible.
 
-That's the "verifiable, multi-factor result recorded on-chain" pattern the winning Masumi projects used.
+That's the "verifiable result recorded on-chain" pattern the winning Masumi projects used — and
+because the hash commits to a diagnosis a farmer acts on, the audit does real work, not decoration.

@@ -4,7 +4,7 @@ Angawatch is two graphs in one Neo4j database, joined where they meet:
 
 1. **The farm record** (operational): `Farmer → Greenhouse → Season → Reading / Alert
    (TRIGGERED_BY readings, RESPONDED_WITH actions) → Harvest`, plus `Cooperative`,
-   `Lender`, `AuditRecord`. This is the verified history a SACCO prices risk against.
+   `AuditRecord`. This is the verified farm history the advisory builds on and audits.
 2. **The agronomic ontology** (domain knowledge): `Crop, Condition, Pathogen, Disease,
    Symptom, Pest, Treatment, Beneficial, GrowthStage` connected by typed relationships.
 
@@ -65,9 +65,10 @@ it walked (the "shows thinking" artifact).
 
 - **Diagnose from current conditions:** latest `Reading`s → `INDICATES` → `Condition` →
   `FAVORS` → likely `Disease`, each disease citing the conditions that implicated it.
-- **Treatment appropriateness (credit signal):** did the farmer's `Action -[:APPLIED]->
+- **Treatment appropriateness:** did the farmer's `Action -[:APPLIED]->
   Treatment` actually `CONTROLS` the `Disease` their `Alert` was `FOR_DISEASE`, within the
-  pre-harvest interval before `Harvest`? That's a relational question feeding the score.
+  pre-harvest interval before `Harvest`? A relational check the advisory agent uses to flag
+  missed/incorrect treatments.
 - **Vector risk:** `Pest -[:VECTORS]-> Disease` lets the agent warn that a whitefly trap
   count is a TYLCV risk, not just a pest count.
 

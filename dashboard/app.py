@@ -40,7 +40,10 @@ with st.sidebar:
     gh_id, county = FARMERS[farmer_id]
     st.markdown(f"<span class='aw-hash'>greenhouse {gh_id} · {county}</span>", unsafe_allow_html=True)
     st.divider()
-    _mstat = settings.masumi_status()
+    # inline (not settings.masumi_status()) so a hot-reload with a cached config
+    # module can't crash the app on a newly-added method
+    _mstat = ("real" if settings.masumi_mode() == "real"
+              else "hybrid" if getattr(settings, "MASUMI_PRERECORDED_TX", None) else "mock")
     _mlabel = {"real": "Masumi · real preprod",
                "hybrid": "Masumi · on-chain proof ✓",
                "mock": "Masumi · mock"}[_mstat]

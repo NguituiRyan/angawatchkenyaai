@@ -43,7 +43,9 @@ def get_services():
     return _build()
 
 
-@st.cache_resource(show_spinner=False)
-def _masumi_client(_settings):
+def _masumi_client(settings):
+    # NOT cached: the client is cheap (no connection) and caching the instance would
+    # pin stale masumi_integration code across a Streamlit hot-reload. Build fresh so it
+    # always uses the current client/backends (the round-trip stays deterministic).
     from masumi_integration.client import build_masumi_client
-    return build_masumi_client(_settings)
+    return build_masumi_client(settings)

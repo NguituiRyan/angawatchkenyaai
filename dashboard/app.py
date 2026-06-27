@@ -17,14 +17,17 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-# Streamlit Cloud hot-reloads app.py but NOT changed sub-modules — so a new app.py
-# can run against a stale cached module and crash until a manual reboot. Force-refresh
-# the fast-changing presentation/logic modules each run so signature changes can never
-# crash the deployed app between push and reboot. The @st.cache_resource singletons live
-# in dashboard.services_cache (NOT refreshed), so Services / the Neo4j connection persist.
+# Streamlit Cloud hot-reloads app.py but NOT changed sub-modules — so a new app.py can
+# run against stale cached modules and crash until a manual reboot. Force-refresh the
+# fast-changing, STATELESS code each run so signature changes can never crash the deployed
+# app between push and reboot. NOT refreshed: dashboard.services_cache / services / graph /
+# config — they hold the @st.cache_resource Services + the live Neo4j connection, which
+# must persist (built once). The advisory→Masumi path lives in agents.*/masumi_integration.*,
+# so those are refreshed too (they hold no caches/connections).
+_REFRESH = ("dashboard.theme", "dashboard.state", "dashboard.components",
+            "agents", "masumi_integration", "comms")
 for _m in [m for m in list(sys.modules)
-           if m in ("dashboard.theme", "dashboard.state")
-           or m.startswith("dashboard.components")]:
+           if any(m == p or m.startswith(p + ".") for p in _REFRESH)]:
     del sys.modules[_m]
 
 from dashboard.components.graph_view import render_graph, render_kg  # noqa: E402

@@ -5,6 +5,9 @@
 .streamlit/secrets.toml
 *.key
 *.pem
+*.skey
+.preprod*
+data/.preprod*
 
 # Python
 __pycache__/

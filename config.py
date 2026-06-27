@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     SOKOSUMI_API_KEY: str | None = None
     AGENT_API_URL: str = "https://angawatch.example/mip003"
 
+    # --- Cardano on-chain Decision Logging (real audit proof) -------------
+    BLOCKFROST_PROJECT_ID: str | None = None   # free preprod key from blockfrost.io
+    CARDANO_WALLET_SKEY: str = "data/.preprod.skey"
+
     # --- Demo identity -----------------------------------------------------
     DEFAULT_FARMER_ID: str = "Farmer-A"
     DEFAULT_GREENHOUSE_ID: str = "gh-001"

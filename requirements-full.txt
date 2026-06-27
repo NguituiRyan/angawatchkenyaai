@@ -21,5 +21,10 @@ uvicorn>=0.29
 masumi>=0.1            # github.com/masumi-network/pip-masumi
 # masumi-crewai      # optional CrewAI helper; uncomment if used directly
 
+# Real Cardano preprod on-chain Decision Logging (audit tx)
+pycardano>=0.11
+blockfrost-python>=0.6
+cbor2==5.6.5           # pinned: pycardano needs CBORDecodeValueError
+
 # Local sensor transport (future ESP32 over MQTT)
 paho-mqtt>=2.0

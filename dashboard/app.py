@@ -550,6 +550,17 @@ with st.sidebar:
             f"{theme.pill(_smode('at_mode'),'SMS · '+_smode('at_mode'))}<br>"
             f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}<br>{_mpill}",
             unsafe_allow_html=True)
+        with st.expander("🔎 Integration check"):
+            _set = lambda n: "✓ set" if getattr(settings, n, None) else "✗ MISSING"
+            st.markdown(
+                f"- SMS (Africa's Talking): **{_smode('at_mode')}**\n"
+                f"- `AT_USERNAME`: {_set('AT_USERNAME')}\n"
+                f"- `AT_API_KEY`: {_set('AT_API_KEY')}\n"
+                f"- `FARMER_PHONE`: `{settings.FARMER_PHONE or '✗ MISSING'}`\n"
+                f"- WhatsApp (Twilio): **{_smode('alert_mode')}**")
+            if _smode("at_mode") != "live":
+                st.caption("SMS is mock → AT_USERNAME and AT_API_KEY must BOTH be present in "
+                           "secrets. If one says ✗ MISSING, add it and Save.")
         st.divider()
         if st.button("↺ Reset demo", use_container_width=True, key="reset"):
             for _k in ("last_run", "kg_exp", "kg_for", "coop_rep", "coop_rep_key", "masumi",

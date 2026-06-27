@@ -282,11 +282,16 @@ class Neo4jGraphStore:
 
     def stats(self) -> dict:
         labels = ["Farmer", "Cooperative", "Lender", "Greenhouse", "Season",
-                  "Reading", "Alert", "Action", "Harvest", "AuditRecord"]
+                  "Reading", "Alert", "Action", "Harvest", "AuditRecord",
+                  # agronomic knowledge graph
+                  "Crop", "Condition", "Pathogen", "Disease", "Symptom", "Pest",
+                  "Treatment", "Beneficial", "GrowthStage"]
         node_counts = {}
         for lab in labels:
             rec = self._run(f"MATCH (n:{lab}) RETURN count(n) AS c")
-            node_counts[lab] = rec[0]["c"] if rec else 0
+            cnt = rec[0]["c"] if rec else 0
+            if cnt:
+                node_counts[lab] = cnt
         rec = self._run("MATCH ()-[r]->() RETURN count(r) AS c")
         return {"mode": self.mode, "nodes": node_counts,
                 "node_total": sum(node_counts.values()),

@@ -169,10 +169,11 @@ class Neo4jGraphStore:
 
     # --- reads -------------------------------------------------------------
     def list_recent_readings(self, gh_id: str, limit: int = 50) -> list[dict]:
-        return self._run(
+        rows = self._run(
             "MATCH (g:Greenhouse {id:$gh})-[:RECORDED]->(x:Reading) "
             "RETURN x ORDER BY x.ts DESC LIMIT $lim", gh=gh_id, lim=limit,
         )
+        return [r["x"] for r in rows]   # flatten to plain reading dicts (match in-memory store)
 
     def list_alerts(self, gh_id: str, limit: int = 50) -> list[dict]:
         rows = self._run(

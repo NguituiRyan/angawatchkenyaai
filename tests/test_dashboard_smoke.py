@@ -1,5 +1,15 @@
 """Headless smoke test: run the Streamlit app in-process and click the key
-buttons, asserting no exception is raised (catches render/runtime errors)."""
+buttons, asserting no exception is raised (catches render/runtime errors).
+
+Forced to in-memory + mock so the suite is fast, deterministic, and never writes
+to a live Aura instance even when .env has real creds.
+"""
+import os
+
+os.environ["GRAPH_BACKEND"] = "memory"
+os.environ["VISION_MODE"] = "mock"
+os.environ["MASUMI_MODE"] = "mock"
+
 import pytest
 
 pytest.importorskip("streamlit")

@@ -50,6 +50,13 @@ FARMERS = {"Farmer-A": ("gh-001", "Nakuru"), "Farmer-B": ("gh-002", "Kiambu"),
            "Farmer-C": ("gh-003", "Kajiado")}
 
 
+def _smode(name: str) -> str:
+    """Read a Settings *_mode() resolver, tolerating a stale cached Settings (e.g. one
+    built before at_mode existed) so a hot-reload can't crash the app before a reboot."""
+    fn = getattr(settings, name, None)
+    return fn() if callable(fn) else "mock"
+
+
 # ============================================================ LANDING ========
 def render_landing() -> None:
     st.markdown(
@@ -97,8 +104,8 @@ def render_landing() -> None:
         f"<span style='color:var(--faint);font-size:.78rem'>live:</span>"
         f"{theme.pill(services.store.mode,'Neo4j · '+services.store.mode)}"
         f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}"
-        f"{theme.pill(settings.alert_mode(),'WhatsApp · '+settings.alert_mode())}"
-        f"{theme.pill(settings.at_mode(),'SMS · '+settings.at_mode())}"
+        f"{theme.pill(_smode('alert_mode'),'WhatsApp · '+_smode('alert_mode'))}"
+        f"{theme.pill(_smode('at_mode'),'SMS · '+_smode('at_mode'))}"
         f"{theme.pill('real' if getattr(settings,'MASUMI_PRERECORDED_TX',None) else 'mock','Masumi')}"
         f"</div>", unsafe_allow_html=True)
 
@@ -523,8 +530,8 @@ with st.sidebar:
         st.markdown(
             f"**Live status**<br>"
             f"{theme.pill(services.store.mode,'Graph · '+services.store.mode)}<br>"
-            f"{theme.pill(settings.alert_mode(),'WhatsApp · '+settings.alert_mode())}<br>"
-            f"{theme.pill(settings.at_mode(),'SMS · '+settings.at_mode())}<br>"
+            f"{theme.pill(_smode('alert_mode'),'WhatsApp · '+_smode('alert_mode'))}<br>"
+            f"{theme.pill(_smode('at_mode'),'SMS · '+_smode('at_mode'))}<br>"
             f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}<br>{_mpill}",
             unsafe_allow_html=True)
         st.divider()

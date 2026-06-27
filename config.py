@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     # --- Cardano on-chain Decision Logging (real audit proof) -------------
     BLOCKFROST_PROJECT_ID: str | None = None   # free preprod key from blockfrost.io
     CARDANO_WALLET_SKEY: str = "data/.preprod.skey"
+    MASUMI_ONCHAIN_LIVE: bool = False          # commit a FRESH on-chain tx per round-trip
 
     # --- Demo identity -----------------------------------------------------
     DEFAULT_FARMER_ID: str = "Farmer-A"
@@ -110,6 +111,12 @@ class Settings(BaseSettings):
 
     def sokosumi_mode(self) -> str:
         return "live" if self.SOKOSUMI_API_KEY else "mock"
+
+    def onchain_live(self) -> bool:
+        """Can we submit a fresh, real preprod Decision-Log tx this run?"""
+        import os
+        return bool(self.MASUMI_ONCHAIN_LIVE and self.BLOCKFROST_PROJECT_ID
+                    and os.path.exists(self.CARDANO_WALLET_SKEY))
 
 
 @lru_cache

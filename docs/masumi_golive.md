@@ -36,6 +36,24 @@ Goal: a real Cardano **Preprod** transaction hash to show as the audit link.
 In the demo, say: *"Registration and the on-chain audit hash are real on Cardano preprod — here's the
 transaction. The live payment click-through runs in safe mode so the demo never stalls on a confirm."*
 
+### Path A+ — commit a FRESH Decision-Log tx live, per round-trip (recommended)
+Beyond the one prerecorded tx, the app can submit a **fresh, real preprod transaction each run**
+committing that report's `result_hash` (the diagnosis + plan). Requires the funded wallet + Blockfrost
+(Path A) plus:
+```
+MASUMI_ONCHAIN_LIVE=1
+```
+Then in the Co-op tab tick **"Commit the Decision-Log LIVE on-chain this run"** before *Pay & deliver via
+Masumi*; the audit step links to a brand-new cardanoscan tx (proof `onchain-live`). CLI equivalent:
+`python scripts/cardano_record.py` (prints the tx + sets `MASUMI_PRERECORDED_TX`). Verified working:
+e.g. tx `d7c8c82b…` commits result_hash `3a013876…` for a *Late blight* advisory.
+
+### Agent-to-agent (A2A)
+After delivering the plan, the Advisory Agent itself becomes a **buyer on Masumi**: it hires the
+**AgroInput Price Agent** (a second DID-identified agent) to source the recommended product's price &
+availability — discover → escrow → deliver → audit, agent-to-agent. Shown via *"Run agent-to-agent"* in
+the Co-op tab. This is the agent-to-agent coordination Masumi judges reward.
+
 ---
 
 ## Path B — Real escrow payment (stretch, needs the Payment Service)

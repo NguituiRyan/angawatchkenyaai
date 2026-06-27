@@ -74,7 +74,9 @@ class AgenticAgronomist:
                     {"role": "user", "content": f"Greenhouse: {gh_id}\nQuestion: {question}"}]
         trace, cyphers, tools_used = [], [], []
         for step in range(max_steps):
-            raw = chat(self.settings, messages, temperature=0.2, max_tokens=500)
+            # retries=1 keeps the interactive loop snappy — fail over to the
+            # question-aware deterministic plan fast if the free model is down.
+            raw = chat(self.settings, messages, temperature=0.2, max_tokens=500, retries=1)
             move = _extract_json(raw)
             if not move:
                 break
@@ -120,7 +122,8 @@ class AgenticAgronomist:
             if not named:
                 plan.append(("explain_latest_alert", {}, "Confirm against the latest fired alert."))
 
-        trace, tools_used, disease = [], [], None
+        trace, tools_used = [], []
+        alert_disease, cond_disease = None, None
         seen = set()
         for tool, args, thought in plan:
             key = (tool, tuple(sorted(args.items())))
@@ -133,9 +136,10 @@ class AgenticAgronomist:
                           "observation": res["observation"], "cypher": res.get("cypher")})
             data = res.get("data") or {}
             if tool == "explain_latest_alert" and isinstance(data, dict):
-                disease = disease or (data.get("disease") or {}).get("name")
+                alert_disease = (data.get("disease") or {}).get("name")   # the CONFIRMED fired alert
             if tool == "diagnose_conditions" and data.get("diseases"):
-                disease = disease or data["diseases"][0]["name"]
+                cond_disease = data["diseases"][0]["name"]
+        disease = alert_disease or cond_disease   # prefer the confirmed alert over a conditions guess
         # if we diagnosed but never fetched controls for it, do so
         if disease and not any(t["tool"] == "treatments_for" for t in trace):
             res = gt.run_tool("treatments_for", store, self.settings, gh_id, target=disease)

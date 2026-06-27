@@ -66,9 +66,24 @@ def coop_triage(services, farms: list[tuple]) -> list[dict]:
     return out
 
 
-def masumi_round_trip(services, report):
+def masumi_round_trip(services, report, live_onchain: bool = False):
     client = _masumi_client(services.settings)
-    return client.run_round_trip(report, store=services.store), client.mode
+    trip = client.run_round_trip(report, store=services.store, live_onchain=live_onchain)
+    return trip, client.mode
+
+
+def advisory_a2a(services, report):
+    """Agent-to-agent: the advisory agent hires the AgroInput Price Agent over Masumi."""
+    from agents.input_price import PROFILE, AgroInputPriceAgent
+    q = AgroInputPriceAgent().quote_for_report(report)
+    if not q:
+        return None
+    client = _masumi_client(services.settings)
+    sub = client.hire_agent(
+        PROFILE["name"], PROFILE["description"],
+        input_data={"treatment_id": q["treatment_id"], "region": "Nakuru"},
+        result_hash=q["result_hash"])
+    return {"quote": q, "subtrip": sub, "mode": client.mode}
 
 
 def classify_leaf(services, uploaded_or_path):

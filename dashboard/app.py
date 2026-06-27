@@ -34,12 +34,13 @@ for _m in [m for m in list(sys.modules)
 from dashboard.components.graph_view import render_graph, render_kg  # noqa: E402
 from dashboard.components.masumi_panel import render_masumi       # noqa: E402
 from dashboard.components.advisory_card import render_advisory_report  # noqa: E402
-from dashboard.state import (advisory_answer, advisory_report,  # noqa: E402
-                             agentic_answer, agronomist_diagnose,
-                             agronomist_explain, calm_ticks, classify_leaf,
-                             coop_triage, get_services, inject_and_run,
-                             kg_subgraph, masumi_round_trip, offline_box,
-                             set_language, sms_reply)
+from dashboard.state import (advisory_a2a, advisory_answer,  # noqa: E402
+                             advisory_report, agentic_answer,
+                             agronomist_diagnose, agronomist_explain,
+                             calm_ticks, classify_leaf, coop_triage,
+                             get_services, inject_and_run, kg_subgraph,
+                             masumi_round_trip, offline_box, set_language,
+                             sms_reply)
 from dashboard import theme                                       # noqa: E402
 
 st.set_page_config(page_title="Angawatch — Greenhouse Monitoring", page_icon="🌱", layout="wide")
@@ -325,13 +326,45 @@ with tab_coop:
     st.divider()
     theme.section("Hire & pay the agent via Masumi",
                   "Co-op discovers → pays per report (escrow USDM/ADA) → deliver → on-chain audit.", "link")
+    _can_live = bool(getattr(settings, "onchain_live", lambda: False)())
+    live_oc = st.checkbox("Commit the Decision-Log LIVE on-chain this run (real preprod tx, ~20s)",
+                          value=False, key="masumi_live",
+                          disabled=not _can_live,
+                          help=("Submits a fresh, verifiable Cardano preprod transaction with this "
+                                "report's result_hash. Requires a funded wallet + Blockfrost + "
+                                "MASUMI_ONCHAIN_LIVE=1." if not _can_live else
+                                "Submits a fresh, verifiable Cardano preprod transaction now."))
     if st.button("Pay & deliver via Masumi", type="primary", key="masumi_pay"):
         with st.spinner("Discovering agent → escrow payment → deliver advisory → audit…"):
-            trip, mode = masumi_round_trip(services, rep)
+            trip, mode = masumi_round_trip(services, rep, live_onchain=bool(live_oc))
             st.session_state.masumi = (trip, mode, rep.greenhouse_id)
     m = st.session_state.get("masumi")
     if m and m[2] == rep.greenhouse_id:
         render_masumi(m[0], m[1])
+
+        st.divider()
+        theme.section("Agent-to-agent — the advisory agent hires a second agent",
+                      "To complete the plan, the Advisory Agent itself becomes a buyer on Masumi: "
+                      "it hires the AgroInput Price Agent to source the recommended product's price "
+                      "and availability — agent-to-agent coordination, not just human→agent.", "link")
+        if st.button("Run agent-to-agent (source the input price)", key="a2a_run"):
+            with st.spinner("Advisory agent discovering & paying the Price Agent…"):
+                st.session_state.a2a = (advisory_a2a(services, rep), rep.greenhouse_id)
+        a2a = st.session_state.get("a2a")
+        if a2a and a2a[1] == rep.greenhouse_id and a2a[0]:
+            q = a2a[0]["quote"]
+            theme.kpis([
+                {"label": "Product", "value": q["product"], "icon": "leaf", "tone": "fill",
+                 "sub": f"for {q['treatment']}"},
+                {"label": "Price", "value": f"KES {q['price_kes']:,}" if q["price_kes"] else "—",
+                 "icon": "bank", "sub": q["pack_size"]},
+                {"label": "Supplier", "value": q["supplier"], "icon": "shield",
+                 "sub": f"{q['availability']} · {q['lead_time_days']}d"},
+            ])
+            st.markdown(theme.pill(a2a[0]["mode"], f"agent-to-agent · {a2a[0]['mode']}"),
+                        unsafe_allow_html=True)
+            st.markdown(f"<div class='aw-card'>{theme.stepper(a2a[0]['subtrip']['steps'])}</div>",
+                        unsafe_allow_html=True)
 
 # ========================================================== ADVICE TAB ======
 with tab_advice:

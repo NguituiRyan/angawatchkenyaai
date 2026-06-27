@@ -42,6 +42,10 @@ def test_coop_triage_and_masumi():
     # hiring the agent via Masumi must not raise
     at.button(key="masumi_pay").click().run()
     assert not at.exception, at.exception
+    # the agent-to-agent button appears after the round-trip renders
+    if any(b.key == "a2a_run" for b in at.button):
+        at.button(key="a2a_run").click().run()
+        assert not at.exception, at.exception
 
 
 def test_leaf_scan_and_advisor():

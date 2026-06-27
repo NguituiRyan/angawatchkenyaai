@@ -30,6 +30,20 @@ def _context(settings):
                                   base_url=ApiUrls.preprod.value)
 
 
+def decision_metadata(result_hash: str, agent_id: str, subject: str,
+                      diagnosis, priority: str) -> dict:
+    """The on-chain Decision-Log metadata payload (Cardano string fields cap at 64 bytes)."""
+    return {
+        "app": "Angawatch",
+        "type": "advisory-decision-log",
+        "agent": str(agent_id)[:64],
+        "subject": str(subject)[:64],
+        "diagnosis": str(diagnosis)[:64],
+        "priority": str(priority)[:64],
+        "result_hash": str(result_hash)[:64],
+    }
+
+
 def record_decision_on_chain(result_hash: str, agent_id: str, subject: str,
                              diagnosis, priority: str, settings=None) -> dict:
     """Commit an advisory result_hash (diagnosis + plan) to preprod tx metadata."""
@@ -42,15 +56,8 @@ def record_decision_on_chain(result_hash: str, agent_id: str, subject: str,
 
     sk, addr = wallet_address(settings)
     ctx = _context(settings)
-    meta = Metadata({META_LABEL: {
-        "app": "Angawatch",
-        "type": "advisory-decision-log",
-        "agent": str(agent_id)[:64],
-        "subject": str(subject)[:64],
-        "diagnosis": str(diagnosis)[:64],
-        "priority": str(priority)[:64],
-        "result_hash": str(result_hash)[:64],
-    }})
+    meta = Metadata({META_LABEL: decision_metadata(
+        result_hash, agent_id, subject, diagnosis, priority)})
     builder = TransactionBuilder(ctx)
     builder.add_input_address(addr)
     builder.add_output(TransactionOutput(addr, 1_500_000))   # 1.5 tADA back to self

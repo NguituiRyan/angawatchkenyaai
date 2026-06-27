@@ -322,6 +322,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
 .aw-tag.tt{background:var(--brand-soft); color:var(--brand-ink); border-color:#CDE9BD;}
 .aw-tag.warn{background:var(--danger-soft); color:#B42318; border-color:#F4C2C2;}
 .aw-tag.phi{background:#EAF3FF; color:#1D4ED8; border-color:#CFE0FB;}
+/* agent decision trace (thought -> action -> observation) */
+.aw-dtrace{display:flex; flex-direction:column; gap:8px;}
+.dt-step{display:flex; gap:10px;}
+.dt-n{flex:0 0 24px; height:24px; border-radius:50%; background:var(--brand-soft);
+  color:var(--brand-ink); font-weight:800; font-size:.78rem; display:flex; align-items:center;
+  justify-content:center; font-family:'Plus Jakarta Sans';}
+.dt-b{flex:1; min-width:0; background:var(--surface); border:1px solid var(--border);
+  border-left:3px solid var(--brand); border-radius:11px; padding:9px 12px;}
+.dt-th{color:var(--muted); font-size:.82rem; font-style:italic; margin-bottom:4px;}
+.dt-act{color:var(--fg); font-size:.86rem;}
+.dt-act b{color:var(--brand-ink); font-family:'JetBrains Mono',monospace; font-size:.82rem;}
+.dt-args{color:var(--faint); font-family:'JetBrains Mono',monospace; font-size:.72rem; margin-left:4px;}
+.dt-cy{margin:6px 0; padding:7px 9px; background:#0f1f12; color:#cdeac0; border-radius:8px;
+  font-family:'JetBrains Mono',monospace; font-size:.72rem; white-space:pre-wrap; word-break:break-word;}
+.dt-obs{color:var(--fg); font-size:.82rem; margin-top:5px; background:var(--surface-2);
+  border-radius:8px; padding:6px 9px;}
+.aw-ic{vertical-align:-2px;}
 </style>
 """
 
@@ -406,6 +423,23 @@ def section(title: str, subtitle: str = "", ic: str = "activity") -> None:
         f'<div><h3>{html.escape(title)}</h3>'
         + (f'<p>{html.escape(subtitle)}</p>' if subtitle else "")
         + '</div></div>', unsafe_allow_html=True)
+
+
+def decision_trace(trace: list[dict]) -> str:
+    """Render the agent's thought -> action(tool/Cypher) -> observation steps."""
+    rows = ""
+    for t in trace:
+        args = ", ".join(f"{k}={v}" for k, v in (t.get("args") or {}).items())
+        cy = (f'<div class="dt-cy">{html.escape(t["cypher"])}</div>' if t.get("cypher") else "")
+        rows += (
+            f'<div class="dt-step"><div class="dt-n">{t.get("step","")}</div><div class="dt-b">'
+            f'<div class="dt-th">{icon("spark",12)} {html.escape(t.get("thought",""))}</div>'
+            f'<div class="dt-act">{icon("activity",12)} <b>{html.escape(t.get("tool",""))}</b>'
+            + (f'<span class="dt-args">({html.escape(args)})</span>' if args else "")
+            + f'</div>{cy}'
+            f'<div class="dt-obs">{icon("check",12)} {html.escape(str(t.get("observation","")))}</div>'
+            f'</div></div>')
+    return f'<div class="aw-dtrace">{rows}</div>'
 
 
 def kg_path(hops: list[dict]) -> str:

@@ -62,8 +62,10 @@ def test_feature_phone_sms_and_box():
 
 def test_crop_doctor_graphrag():
     at = _run()
-    # the Crop-doctor tab auto-runs explain on load; exercise both buttons too
+    # the Crop-doctor tab auto-runs explain on load; exercise the buttons too
     at.button(key="kg_explain").click().run()
     assert not at.exception, at.exception
     at.button(key="kg_diag_btn").click().run()
+    assert not at.exception, at.exception
+    at.button(key="agentic_run").click().run()   # the agentic decision-trace panel
     assert not at.exception, at.exception

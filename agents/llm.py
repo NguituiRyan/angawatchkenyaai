@@ -42,6 +42,29 @@ def _openrouter_client(settings):
         return None
 
 
+def chat(settings, messages, temperature: float = 0.2, max_tokens: int = 600,
+         retries: int = 2) -> str | None:
+    """Generic OpenRouter chat completion; returns cleaned text or None (caller falls back).
+    Retries briefly on transient errors (free models 429 intermittently)."""
+    import time
+    client = _openrouter_client(settings)
+    if client is None:
+        return None
+    model = settings.OPENROUTER_MODEL.replace("openrouter/", "")
+    for attempt in range(retries + 1):
+        try:
+            resp = client.chat.completions.create(
+                model=model, messages=messages, temperature=temperature, max_tokens=max_tokens)
+            text = clean_llm_text(resp.choices[0].message.content)
+            if text:
+                return text
+        except Exception as exc:  # noqa: BLE001
+            log.warning("OpenRouter chat failed (attempt %d: %s)", attempt + 1, exc)
+        if attempt < retries:
+            time.sleep(1.2 * (attempt + 1))
+    return None
+
+
 def _facts(assessment, subgraph) -> str:
     lines = [f"Farmer: {assessment.farmer_id}",
              f"Overall score: {assessment.overall_score}/100",

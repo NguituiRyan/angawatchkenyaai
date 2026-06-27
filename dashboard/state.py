@@ -110,6 +110,12 @@ def kg_subgraph(services, disease_id: str) -> dict:
     return _kg(services.store, disease_id)
 
 
+def agentic_answer(services, gh_id: str, question: str) -> dict:
+    """The agronomist AGENT plans which graph tools to call; returns the decision trace."""
+    from agents.agentic import AgenticAgronomist
+    return AgenticAgronomist(services.settings).answer(services.store, gh_id, question)
+
+
 def set_language(services, farmer_id: str, lang: str) -> None:
     # getattr-guard so a Streamlit hot-reload with a cached old store module
     # (no update_farmer yet) degrades gracefully instead of crashing the app

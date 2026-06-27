@@ -8,6 +8,7 @@ and the Masumi round-trip. Every capability shows a LIVE/MOCK badge.
 """
 from __future__ import annotations
 
+import html
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -34,11 +35,11 @@ from dashboard.components.graph_view import render_graph, render_kg  # noqa: E40
 from dashboard.components.masumi_panel import render_masumi       # noqa: E402
 from dashboard.components.advisory_card import render_advisory_report  # noqa: E402
 from dashboard.state import (advisory_answer, advisory_report,  # noqa: E402
-                             agronomist_diagnose, agronomist_explain,
-                             calm_ticks, classify_leaf, coop_triage,
-                             get_services, inject_and_run, kg_subgraph,
-                             masumi_round_trip, offline_box, set_language,
-                             sms_reply)
+                             agentic_answer, agronomist_diagnose,
+                             agronomist_explain, calm_ticks, classify_leaf,
+                             coop_triage, get_services, inject_and_run,
+                             kg_subgraph, masumi_round_trip, offline_box,
+                             set_language, sms_reply)
 from dashboard import theme                                       # noqa: E402
 
 st.set_page_config(page_title="Angawatch — Greenhouse Monitoring", page_icon="🌱", layout="wide")
@@ -266,6 +267,27 @@ with tab_doctor:
         if diag.get("treatments"):
             st.caption(f"Top control for {diag['diseases'][0]['name']}:")
             st.markdown(theme.treatment_list(diag["treatments"], n=3), unsafe_allow_html=True)
+
+    st.divider()
+    theme.section("Ask the agent — it plans its own graph queries",
+                  "Type a question. The AGENT decides which knowledge-graph tools (and Cypher) to "
+                  "run, step by step, and shows the reasoning trace — not a single canned query.", "spark")
+    aq = st.text_input("Ask the agronomist agent",
+                       "What's my main disease risk now and the cheapest safe treatment?",
+                       key="agentic_q")
+    if st.button("Run the agent", key="agentic_run", type="primary"):
+        with st.spinner("Agent planning graph queries…"):
+            st.session_state.agentic = agentic_answer(services, gh_id, aq)
+    ag = st.session_state.get("agentic")
+    if ag:
+        st.markdown(theme.pill(ag["mode"], f"agent planner · {ag['mode']} · {len(ag['trace'])} steps · "
+                               f"tools: {', '.join(dict.fromkeys(ag['tools_used'])) or '—'}"),
+                    unsafe_allow_html=True)
+        st.markdown("**Decision trace** — the tools the agent chose, in order")
+        st.markdown(theme.decision_trace(ag["trace"]), unsafe_allow_html=True)
+        _ans = (ag.get("answer") or "").replace("**", "").replace("*", "")
+        st.markdown(f"<div class='aw-card' style='margin-top:8px'><b>Answer.</b> {html.escape(_ans)}</div>",
+                    unsafe_allow_html=True)
 
 # ========================================================= CO-OP TRIAGE =====
 with tab_coop:

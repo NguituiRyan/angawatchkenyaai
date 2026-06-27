@@ -101,7 +101,14 @@ def advisory_answer(services, farmer_id: str, question: str) -> dict:
 
 
 def set_language(services, farmer_id: str, lang: str) -> None:
-    services.store.update_farmer(farmer_id, language=lang)
+    # getattr-guard so a Streamlit hot-reload with a cached old store module
+    # (no update_farmer yet) degrades gracefully instead of crashing the app
+    upd = getattr(services.store, "update_farmer", None)
+    if callable(upd):
+        try:
+            upd(farmer_id, language=lang)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def sms_reply(services, farmer_id: str, text: str) -> dict:

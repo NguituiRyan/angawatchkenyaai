@@ -28,6 +28,15 @@ _KW = {
 }
 
 
+def _update(store, farmer_id: str, **props) -> None:
+    upd = getattr(store, "update_farmer", None)   # guard for hot-reload cached stores
+    if callable(upd):
+        try:
+            upd(farmer_id, **props)
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _kind(text: str) -> str:
     word = (text or "").strip().upper().split()[0] if text.strip() else "HELP"
     for k, words in _KW.items():
@@ -60,14 +69,14 @@ def handle_inbound(services, farmer_id: str, text: str) -> dict:
         reply = i18n.ui("loan", lang, score=int(round(a.overall_score)),
                         band=a.credit["grade"], limit=a.credit["limit"])
     elif kind == "subscribe":
-        store.update_farmer(farmer_id, subscribed=True)
+        _update(store, farmer_id, subscribed=True)
         reply = i18n.ui("subscribed", lang)
     elif kind == "stop":
-        store.update_farmer(farmer_id, subscribed=False)
+        _update(store, farmer_id, subscribed=False)
         reply = i18n.ui("stopped", lang)
     elif kind in ("sw", "en"):
         lang = kind
-        store.update_farmer(farmer_id, language=lang)
+        _update(store, farmer_id, language=lang)
         reply = i18n.ui("lang_set", lang)
     elif kind == "help":
         reply = i18n.ui("help", lang)

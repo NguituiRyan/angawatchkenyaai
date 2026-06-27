@@ -224,7 +224,9 @@ with tab_phone:
     lang_label = st.radio("Language / Lugha", ["English", "Kiswahili"], horizontal=True,
                           key="phone_lang")
     lang = "sw" if lang_label == "Kiswahili" else "en"
-    set_language(services, farmer_id, lang)
+    if st.session_state.get("_lang_for") != (farmer_id, lang):
+        set_language(services, farmer_id, lang)   # only write when it actually changes
+        st.session_state._lang_for = (farmer_id, lang)
 
     pcol, ocol = st.columns(2, gap="large")
     with pcol:

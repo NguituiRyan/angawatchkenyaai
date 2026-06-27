@@ -38,8 +38,9 @@ _OPTIONS = json.dumps({
         "stabilization": {"enabled": True, "iterations": 220, "fit": True},
         "minVelocity": 0.6,
     },
+    # locked: no scroll-zoom / no pan (so page scroll works + graph stays in frame)
     "interaction": {"hover": True, "tooltipDelay": 120, "dragNodes": True,
-                    "dragView": True, "zoomView": True, "navigationButtons": False},
+                    "dragView": False, "zoomView": False, "navigationButtons": False},
 })
 
 
@@ -63,6 +64,10 @@ def _render_pyvis(data: dict) -> bool:
         html = net.generate_html()
     # round the iframe corners to match our cards
     html = html.replace("<body>", '<body style="margin:0;background:#FFFFFF;border-radius:16px">')
+    # freeze physics once stabilized so the graph stops drifting / leaving the frame
+    freeze = ("<script>setTimeout(function(){try{network.setOptions({physics:false});"
+              "network.fit();}catch(e){}},2600);</script>")
+    html = html.replace("</body>", freeze + "</body>")
     components.html(html, height=466, scrolling=False)
     return True
 

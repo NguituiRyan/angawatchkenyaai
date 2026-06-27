@@ -36,7 +36,7 @@ def icon(name: str, size: int = 18, cls: str = "") -> str:
     body = ICONS.get(name, "")
     return (f'<svg class="aw-ic {cls}" width="{size}" height="{size}" viewBox="0 0 24 24" '
             f'fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
-            f'stroke-linejoin="round">{body}</svg>')
+            f'stroke-linejoin="round" aria-hidden="true" focusable="false">{body}</svg>')
 
 
 THEME_CSS = """
@@ -46,7 +46,7 @@ THEME_CSS = """
 :root{
   --bg:#F2F5EE; --surface:#FFFFFF; --surface-2:#F8FBF5;
   --border:#E7ECE0; --border-2:#DDE6D2;
-  --fg:#1B2A1F; --muted:#6E7D70; --faint:#9AA89C;
+  --fg:#1B2A1F; --muted:#5C6B5E; --faint:#6E7D70;   /* AA-contrast greens on white */
   --brand:#54B435; --brand-strong:#3F9E2A; --brand-ink:#2E7321; --brand-soft:#EAF6E1;
   --hero-1:#8FD64E; --hero-2:#57B72F;
   --amber:#F2C53D; --amber-soft:#FBF1CF; --blue:#3B82F6; --danger:#E5484D; --danger-soft:#FBE7E7;
@@ -269,6 +269,15 @@ hr{border-color:var(--border)!important;}
 .aw-bub .who{display:block; font-size:.64rem; color:var(--faint); margin-bottom:2px;
   font-family:'JetBrains Mono',monospace;}
 
+/* accessibility: visible keyboard focus on all interactive elements */
+.stButton > button:focus-visible, .stTabs [data-baseweb="tab"]:focus-visible,
+[data-testid="stSidebar"] *:focus-visible, a:focus-visible, summary:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+[role="radio"]:focus-visible, [role="tab"]:focus-visible{
+  outline:3px solid var(--brand-strong)!important; outline-offset:2px!important;
+  border-radius:8px;
+}
+.aw-step .tx a, .aw-footer a{text-decoration:underline;}   /* links not colour-only */
 @media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important;}}
 </style>
 """
@@ -287,7 +296,9 @@ def pill(mode: str, label: str | None = None) -> str:
     live = _is_live(mode)
     cls = "live" if live else "mock"
     text = label or ("LIVE" if live else "MOCK")
-    return f'<span class="aw-pill {cls}"><span class="dot"></span>{html.escape(text)}</span>'
+    state = "live" if live else "mock"
+    return (f'<span class="aw-pill {cls}" role="status" aria-label="{html.escape(text)} ({state})">'
+            f'<span class="dot" aria-hidden="true"></span>{html.escape(text)}</span>')
 
 
 def topbar(title: str, subtitle: str, date_label: str, alerts: int = 0) -> None:

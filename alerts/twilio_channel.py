@@ -2,7 +2,7 @@
 on any failure it degrades to the console (returns mode='mock')."""
 from __future__ import annotations
 
-from alerts.channel import Alert, AlertChannel, DeliveryResult
+from alerts.channel import Alert, AlertChannel, DeliveryResult, split_recipients
 from alerts.console_channel import ConsoleChannel
 from logging_setup import get_logger
 
@@ -24,34 +24,35 @@ class TwilioChannel(AlertChannel):
         return self._client
 
     def send(self, to: str | None, alert: Alert) -> DeliveryResult:
-        to = to or self.settings.FARMER_PHONE
-        if not to:
+        nums = split_recipients(to or self.settings.FARMER_PHONE)
+        if not nums:
             log.warning("No FARMER_PHONE set — falling back to console")
             return self._console.send(to, alert)
         # the farmer-facing, action-first message (already includes the Angawatch header)
         body = alert.message or alert.short()
-        # 1) WhatsApp
-        try:
-            client = self._get_client()
-            msg = client.messages.create(
-                from_=self.settings.TWILIO_FROM,
-                to=to if to.startswith("whatsapp:") else f"whatsapp:{to}",
-                body=body,
-            )
-            log.info("[LIVE] WhatsApp sent sid=%s -> %s", msg.sid, to)
-            return DeliveryResult(True, "live", "whatsapp", f"sid={msg.sid}")
-        except Exception as exc:  # noqa: BLE001
-            log.warning("WhatsApp failed (%s) — trying SMS", exc)
-        # 2) SMS fallback
-        try:
-            sms_from = self.settings.TWILIO_SMS_FROM
-            if sms_from:
-                client = self._get_client()
-                plain = to.replace("whatsapp:", "")
-                msg = client.messages.create(from_=sms_from, to=plain, body=body)
-                log.info("[LIVE] SMS sent sid=%s -> %s", msg.sid, plain)
-                return DeliveryResult(True, "live", "sms", f"sid={msg.sid}")
-        except Exception as exc:  # noqa: BLE001
-            log.warning("SMS failed (%s) — falling back to console", exc)
-        # 3) Console (labeled mock) — guarantees the demo never hard-fails
-        return self._console.send(to, alert)
+        sids = []
+        for n in nums:                       # WhatsApp to each recipient
+            try:
+                msg = self._get_client().messages.create(
+                    from_=self.settings.TWILIO_FROM, to=f"whatsapp:{n}", body=body)
+                log.info("[LIVE] WhatsApp sent sid=%s -> %s", msg.sid, n)
+                sids.append(msg.sid)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("WhatsApp to %s failed (%s)", n, exc)
+        if sids:
+            return DeliveryResult(True, "live", "whatsapp",
+                                  f"{len(sids)}/{len(nums)} sent ({sids[0]})")
+        # Optional Twilio-SMS fallback (only if a real SMS-capable number is set)
+        sms_from = self.settings.TWILIO_SMS_FROM
+        if sms_from:
+            for n in nums:
+                try:
+                    msg = self._get_client().messages.create(from_=sms_from, to=n, body=body)
+                    log.info("[LIVE] SMS sent sid=%s -> %s", msg.sid, n)
+                    sids.append(msg.sid)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("SMS to %s failed (%s)", n, exc)
+            if sids:
+                return DeliveryResult(True, "live", "sms", f"{len(sids)}/{len(nums)} sent")
+        # Console (labeled mock) — guarantees the demo never hard-fails
+        return self._console.send(", ".join(nums), alert)

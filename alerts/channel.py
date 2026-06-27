@@ -1,8 +1,18 @@
 """Alert + AlertChannel interface."""
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+
+
+def split_recipients(to: str | None) -> list[str]:
+    """Split a comma/space-separated phone list into clean E.164 numbers, so FARMER_PHONE
+    can target several handsets at once (e.g. '+254733333147, +254753534484')."""
+    if not to:
+        return []
+    parts = re.split(r"[,\s]+", to.replace("whatsapp:", "").strip())
+    return [p for p in parts if p]
 
 
 @dataclass

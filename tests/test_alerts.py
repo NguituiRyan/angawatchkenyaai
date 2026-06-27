@@ -42,9 +42,31 @@ def test_sms_safe_strips_non_gsm():
 def test_at_channel_success(monkeypatch):
     import requests
     monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(
-        [{"status": "Success", "messageId": "ATXid_1", "cost": "KES 0.8"}]))
+        [{"status": "Success", "number": "+254700000000", "messageId": "ATXid_1", "cost": "KES 0.8"}]))
     res = AfricasTalkingChannel(_st()).send("+254700000000", _alert())
-    assert res.ok and res.mode == "live" and res.provider == "sms" and "ATXid_1" in res.detail
+    assert res.ok and res.mode == "live" and res.provider == "sms" and "1/1" in res.detail
+
+
+def test_split_recipients():
+    from alerts.channel import split_recipients
+    assert split_recipients("+254733333147, +254753534484") == ["+254733333147", "+254753534484"]
+    assert split_recipients("whatsapp:+254700000000") == ["+254700000000"]
+    assert split_recipients("") == [] and split_recipients(None) == []
+
+
+def test_at_channel_multi_recipient(monkeypatch):
+    import requests
+    captured = {}
+
+    def fake(*a, **k):
+        captured["to"] = k["data"]["to"]
+        return _Resp([{"status": "Success", "number": "+254700000000", "messageId": "A1"},
+                      {"status": "Success", "number": "+254711111111", "messageId": "A2"}])
+    monkeypatch.setattr(requests, "post", fake)
+    res = AfricasTalkingChannel(
+        _st(FARMER_PHONE="+254700000000,+254711111111")).send("+254700000000, +254711111111", _alert())
+    assert res.mode == "live" and "2/2" in res.detail
+    assert captured["to"] == "+254700000000,+254711111111"    # ONE call, comma-joined
 
 
 def test_at_channel_failure_falls_back_to_console(monkeypatch):

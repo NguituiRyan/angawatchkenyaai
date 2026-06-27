@@ -9,7 +9,7 @@ simulator app, not a real handset.
 """
 from __future__ import annotations
 
-from alerts.channel import Alert, AlertChannel, DeliveryResult
+from alerts.channel import Alert, AlertChannel, DeliveryResult, split_recipients
 from alerts.console_channel import ConsoleChannel
 from logging_setup import get_logger
 
@@ -32,12 +32,14 @@ class AfricasTalkingChannel(AlertChannel):
         self._console = ConsoleChannel()
 
     def send(self, to: str | None, alert: Alert) -> DeliveryResult:
-        to = (to or self.settings.FARMER_PHONE or "").replace("whatsapp:", "")
-        if not to:
+        nums = split_recipients(to or self.settings.FARMER_PHONE)
+        if not nums:
             return self._console.send(to, alert)
         sandbox = bool(self.settings.AT_SANDBOX) or self.settings.AT_USERNAME == "sandbox"
         base = _SANDBOX if sandbox else _LIVE
-        data = {"username": self.settings.AT_USERNAME, "to": to, "message": _sms_safe(alert.message)}
+        # AT delivers to several recipients in ONE call (comma-separated `to`)
+        data = {"username": self.settings.AT_USERNAME, "to": ",".join(nums),
+                "message": _sms_safe(alert.message)}
         if self.settings.AT_SENDER_ID:
             data["from"] = self.settings.AT_SENDER_ID
         try:
@@ -49,12 +51,12 @@ class AfricasTalkingChannel(AlertChannel):
                 data=data, timeout=20)
             resp.raise_for_status()
             recips = resp.json().get("SMSMessageData", {}).get("Recipients", [])
-            sent = next((r for r in recips if r.get("status") == "Success"), None)
+            sent = [r for r in recips if r.get("status") == "Success"]
             if sent:
-                log.info("[LIVE] AT SMS sent id=%s -> %s (%s)", sent.get("messageId"),
-                         to, sent.get("cost"))
+                who = ", ".join(r.get("number", "") for r in sent)
+                log.info("[LIVE] AT SMS sent %d/%d -> %s", len(sent), len(nums), who)
                 return DeliveryResult(True, "live", "sms",
-                                      f"AT id={sent.get('messageId')} {sent.get('cost','')}".strip())
+                                      f"AT {len(sent)}/{len(nums)} delivered ({who})")
             why = recips[0].get("status") if recips else \
                 resp.json().get("SMSMessageData", {}).get("Message", "no recipients")
             log.warning("AT SMS not delivered (%s)", why)

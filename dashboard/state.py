@@ -158,6 +158,21 @@ def sms_reply(services, farmer_id: str, text: str) -> dict:
     return handle_inbound(services, farmer_id, text)
 
 
+def send_text(services, to: str, text: str, gh_id: str = "gh-001") -> dict:
+    """Actually DELIVER an arbitrary message body to a phone via the configured channel
+    (Africa's Talking SMS + Twilio WhatsApp). Used so the feature-phone tab sends a real
+    SMS on a keyword press. Never raises into the UI; in mock mode it logs to console."""
+    from datetime import datetime
+    from alerts.channel import Alert
+    try:
+        alert = Alert(gh_id=gh_id, kind="sms_reply", level="INFO", message=text,
+                      ts=datetime.now().isoformat(), channel="sms")
+        res = services.channel.send(to, alert)
+        return {"ok": res.ok, "mode": res.mode, "provider": res.provider, "detail": res.detail}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "mode": "mock", "provider": "console", "detail": str(exc)}
+
+
 def offline_box(services, gh_id: str, lang: str) -> dict:
     from comms.offline_box import box_for_greenhouse
     return box_for_greenhouse(services, gh_id, lang)

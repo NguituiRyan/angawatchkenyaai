@@ -14,6 +14,8 @@ os.environ["LLM_MODE"] = "mock"
 os.environ["SOKOSUMI_API_KEY"] = ""
 os.environ["TWILIO_SID"] = ""
 os.environ["TWILIO_TOKEN"] = ""
+os.environ["AT_USERNAME"] = ""        # force at_mode=mock so tests NEVER send real SMS
+os.environ["AT_API_KEY"] = ""
 
 import pytest
 

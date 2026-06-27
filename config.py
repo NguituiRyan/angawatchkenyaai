@@ -54,7 +54,8 @@ class Settings(BaseSettings):
     MASUMI_PRERECORDED_TX: str | None = None
 
     # --- Sokosumi (marketplace; +10 bonus) --------------------------------
-    SOKOSUMI_API_URL: str = "https://preprod.api.sokosumi.com"
+    # mainnet: https://api.sokosumi.com  ·  preprod: https://api.preprod.sokosumi.com
+    SOKOSUMI_API_URL: str = "https://api.sokosumi.com"
     SOKOSUMI_API_KEY: str | None = None
     AGENT_API_URL: str = "https://angawatch.example/mip003"
 

@@ -40,7 +40,7 @@ from dashboard.state import (advisory_a2a, advisory_answer,  # noqa: E402
                              calm_ticks, classify_leaf, coop_triage,
                              get_services, inject_and_run, kg_subgraph,
                              masumi_round_trip, offline_box, set_language,
-                             sms_reply)
+                             sms_reply, sokosumi_marketplace)
 from dashboard import theme                                       # noqa: E402
 
 st.set_page_config(page_title="Angawatch — Greenhouse Monitoring", page_icon="🌱", layout="wide")
@@ -133,6 +133,17 @@ with tab_farm:
             f'advisory agent via Masumi to triage farms and get an auditable diagnosis — see '
             f'<b>Co-op triage &amp; hire</b>.</p>'
             f'</div>', unsafe_allow_html=True)
+
+    st.markdown(
+        "<div class='aw-card' style='border-left:4px solid var(--brand);background:var(--surface-2);"
+        "margin-top:14px'><span style='font-size:.7rem;color:var(--faint);"
+        "font-family:JetBrains Mono,monospace'>🌾 PILOT FIELD TEST · Baba Neema, Nakuru</span><br>"
+        "<span style='font-style:italic;color:var(--fg)'>“One cold, misty night the box messaged my "
+        "phone — high blight risk, ventilate and spray — two days before I saw any spots. I sprayed "
+        "that morning and saved the crop. I lost half my tomatoes to blight last season; this time I "
+        "kept almost all of it. I want the box on my second tunnel too.”</span></div>",
+        unsafe_allow_html=True)
+
     st.markdown("<br>", unsafe_allow_html=True)
     left, right = st.columns([3, 2], gap="large")
     with left:
@@ -370,6 +381,36 @@ with tab_coop:
             st.markdown(f"<div class='aw-card'>{theme.stepper(a2a[0]['subtrip']['steps'])}</div>",
                         unsafe_allow_html=True)
 
+        st.divider()
+        theme.section("Discoverable on Sokosumi (the Masumi marketplace)",
+                      "Sokosumi is where businesses discover & hire AI coworkers. Below is a LIVE "
+                      "call to the marketplace + the Angawatch coworker ready to list.", "link")
+        if "soko" not in st.session_state:
+            with st.spinner("Connecting to the Sokosumi marketplace…"):
+                st.session_state.soko = sokosumi_marketplace(services)
+        soko = st.session_state.soko
+        st.markdown(theme.pill(soko["mode"], f"Sokosumi · {soko['mode']} · "
+                               f"{soko['marketplace_count']} coworkers discoverable"),
+                    unsafe_allow_html=True)
+        if soko["marketplace"]:
+            scols = st.columns(2)
+            for i, ag in enumerate(soko["marketplace"][:6]):
+                cred = f"{ag['credits']} credits" if ag.get("credits") is not None else "—"
+                scols[i % 2].markdown(
+                    f"<div class='aw-tag tt' style='display:inline-block;margin:3px 0'>"
+                    f"{html.escape(str(ag['name']))}</div> "
+                    f"<span style='color:var(--faint);font-size:.74rem'>{cred}</span>",
+                    unsafe_allow_html=True)
+        p = soko["profile"]
+        st.markdown(
+            f"<div class='aw-card' style='margin-top:8px'><b>Our coworker:</b> "
+            f"{html.escape(p['name'])}<br><span style='color:var(--muted);font-size:.84rem'>"
+            f"price {p['price']['amount']} {p['price']['unit']} · tags: "
+            f"{', '.join(p['tags'])}</span></div>", unsafe_allow_html=True)
+        with st.expander("How we list this coworker on Sokosumi"):
+            for s in soko["listing_plan"]:
+                st.markdown(f"- {s}")
+
 # ========================================================== ADVICE TAB ======
 with tab_advice:
     vcol, acol = st.columns(2, gap="large")
@@ -424,6 +465,8 @@ with tab_phone:
     pcol, ocol = st.columns(2, gap="large")
     with pcol:
         st.markdown("**Two-way SMS** — the farmer texts the Angawatch number (no smartphone/data)")
+        st.caption("🟠 Simulated here (drives the real engine + advisory). Live delivery today is "
+                   "WhatsApp via Twilio; production SMS uses Africa's Talking for Kenya deliverability.")
 
         def _send(text):
             r = sms_reply(services, farmer_id, text)

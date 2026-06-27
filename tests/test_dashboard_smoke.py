@@ -10,6 +10,10 @@ os.environ["GRAPH_BACKEND"] = "memory"
 os.environ["VISION_MODE"] = "mock"
 os.environ["MASUMI_MODE"] = "mock"
 os.environ["LLM_MODE"] = "mock"
+# keep the smoke test fully offline — no live Sokosumi marketplace call, no real WhatsApp
+os.environ["SOKOSUMI_API_KEY"] = ""
+os.environ["TWILIO_SID"] = ""
+os.environ["TWILIO_TOKEN"] = ""
 
 import pytest
 

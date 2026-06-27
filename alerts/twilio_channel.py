@@ -28,7 +28,8 @@ class TwilioChannel(AlertChannel):
         if not to:
             log.warning("No FARMER_PHONE set — falling back to console")
             return self._console.send(to, alert)
-        body = f"🌱 Angawatch alert\n{alert.short()}"
+        # the farmer-facing, action-first message (already includes the Angawatch header)
+        body = alert.message or alert.short()
         # 1) WhatsApp
         try:
             client = self._get_client()

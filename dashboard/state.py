@@ -73,6 +73,12 @@ def masumi_round_trip(services, report, live_onchain: bool = False):
     return trip, client.mode
 
 
+def sokosumi_marketplace(services) -> dict:
+    """LIVE Sokosumi marketplace discovery (the +10 coworker bonus evidence)."""
+    from masumi_integration.sokosumi import sokosumi_status
+    return sokosumi_status(services.settings)
+
+
 def advisory_a2a(services, report):
     """Agent-to-agent: the advisory agent hires the AgroInput Price Agent over Masumi."""
     from agents.input_price import PROFILE, AgroInputPriceAgent

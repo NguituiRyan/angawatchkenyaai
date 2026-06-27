@@ -17,6 +17,14 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+# Streamlit Cloud hot-reloads app.py but NOT changed sub-modules — so a new app.py
+# can run against a stale cached module and crash until a manual reboot. Force-refresh
+# the PURE-PRESENTATION modules (no caches/connections) each run so signature changes
+# can never crash the deployed app between push and reboot.
+for _m in [m for m in list(sys.modules)
+           if m == "dashboard.theme" or m.startswith("dashboard.components")]:
+    del sys.modules[_m]
+
 from dashboard.components.graph_view import render_graph          # noqa: E402
 from dashboard.components.masumi_panel import render_masumi       # noqa: E402
 from dashboard.components.score_card import render_score_card     # noqa: E402
@@ -271,11 +279,15 @@ _run = st.session_state.get("last_run")
 _has_alert = bool(_run and any(r.get("alert") for r in _run))
 _has_assess = bool(st.session_state.get("assessment"))
 _has_masumi = bool(st.session_state.get("masumi"))
+_flow = [
+    ("Verified farm record", "done"),
+    ("Early blight alert", "done" if _has_alert else "active"),
+    ("Explainable credit score", "done" if _has_assess else ("active" if _has_alert else "")),
+    ("On-chain Masumi audit", "done" if _has_masumi else ("active" if _has_assess else "")),
+]
 with sb_flow:
-    theme.flow_steps([
-        ("Verified farm record", "done"),
-        ("Early blight alert", "done" if _has_alert else "active"),
-        ("Explainable credit score", "done" if _has_assess else ("active" if _has_alert else "")),
-        ("On-chain Masumi audit", "done" if _has_masumi else ("active" if _has_assess else "")),
-    ], vertical=True)
+    try:
+        theme.flow_steps(_flow, vertical=True)
+    except TypeError:                # stale cached theme without the vertical kwarg
+        theme.flow_steps(_flow)
 theme.footer()

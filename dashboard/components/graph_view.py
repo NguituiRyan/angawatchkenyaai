@@ -6,9 +6,17 @@ Falls back to streamlit-agraph, then JSON, so it never hard-fails.
 from __future__ import annotations
 
 import json
+import re
 
 import streamlit as st
 import streamlit.components.v1 as components
+
+
+def _short(label: str, n: int = 22) -> str:
+    """Shorten a node label for display (drop parentheticals, cap length) so wide labels
+    don't overflow the frame. The full name stays on hover."""
+    s = re.sub(r"\s*\(.*?\)", "", label or "").strip()
+    return (s[: n - 1] + "…") if len(s) > n else s
 
 GROUP = {
     "Farmer": ("#54B435", 30), "Greenhouse": ("#3B82F6", 26), "Season": ("#8B5CF6", 20),
@@ -20,7 +28,9 @@ GROUP = {
     "Beneficial": ("#8B5CF6", 16), "Crop": ("#54B435", 24), "GrowthStage": ("#64748B", 16),
 }
 
-_OPTIONS = json.dumps({
+# shared node/edge/interaction styling — the two graphs only differ in physics so they
+# render with the SAME look and both sit centred + framed in their white card.
+_BASE = {
     "nodes": {
         "shape": "dot", "borderWidth": 3, "borderWidthSelected": 4,
         "color": {"border": "#FFFFFF", "highlight": {"border": "#2E7321"}},
@@ -36,29 +46,38 @@ _OPTIONS = json.dumps({
         "font": {"size": 11, "color": "#6E7D70", "face": "JetBrains Mono",
                  "strokeWidth": 5, "strokeColor": "#FFFFFF", "align": "middle"},
     },
-    "physics": {
-        "barnesHut": {"gravitationalConstant": -9500, "springLength": 135,
-                      "springConstant": 0.045, "damping": 0.55, "avoidOverlap": 0.6},
-        "stabilization": {"enabled": True, "iterations": 220, "fit": True},
-        "minVelocity": 0.6,
-    },
     # locked: no scroll-zoom / no pan (so page scroll works + graph stays in frame)
     "interaction": {"hover": True, "tooltipDelay": 120, "dragNodes": True,
                     "dragView": False, "zoomView": False, "navigationButtons": False},
-})
+}
+# bigger farm record (~20 nodes): spread out to fill the frame
+_PHYSICS_FARM = {
+    "barnesHut": {"gravitationalConstant": -9500, "springLength": 135, "centralGravity": 0.3,
+                  "springConstant": 0.045, "damping": 0.55, "avoidOverlap": 0.6},
+    "stabilization": {"enabled": True, "iterations": 220, "fit": True}, "minVelocity": 0.6,
+}
+# small KG subgraph (~9 nodes): stronger central pull + overlap avoidance so the focus
+# disease stays centred (not flung to the edge) and the long treatment labels don't clip
+_PHYSICS_KG = {
+    "barnesHut": {"gravitationalConstant": -4200, "springLength": 150, "centralGravity": 0.85,
+                  "springConstant": 0.05, "damping": 0.6, "avoidOverlap": 1.0},
+    "stabilization": {"enabled": True, "iterations": 320, "fit": True}, "minVelocity": 0.5,
+}
+_OPTIONS = json.dumps({**_BASE, "physics": _PHYSICS_FARM})
+_KG_OPTIONS = json.dumps({**_BASE, "physics": _PHYSICS_KG})
 
 
-def _render_pyvis(data: dict) -> bool:
+def _render_pyvis(data: dict, options: str | None = None, fit_scale: float = 0.9) -> bool:
     try:
         from pyvis.network import Network
     except Exception:  # noqa: BLE001
         return False
     net = Network(height="450px", width="100%", bgcolor="#FFFFFF",
                   font_color="#1B2A1F", directed=True, cdn_resources="remote")
-    net.set_options(_OPTIONS)
+    net.set_options(options or _OPTIONS)
     for n in data["nodes"]:
         color, size = GROUP.get(n["group"], ("#94A3B8", 16))
-        net.add_node(n["id"], label=n["label"], color=color, size=size,
+        net.add_node(n["id"], label=_short(n["label"]), color=color, size=size,
                      title=f"{n['group']}: {n['label']}", group=n["group"])
     for e in data["edges"]:
         net.add_edge(e["source"], e["target"], label=e.get("label", ""), title=e.get("label", ""))
@@ -68,9 +87,12 @@ def _render_pyvis(data: dict) -> bool:
         html = net.generate_html()
     # round the iframe corners to match our cards
     html = html.replace("<body>", '<body style="margin:0;background:#FFFFFF;border-radius:16px">')
-    # freeze physics once stabilized so the graph stops drifting / leaving the frame
+    # freeze physics once stabilized, fit to all nodes, then zoom out a touch so node
+    # LABELS (which extend past the dots) never clip at the frame edge — both graphs framed alike
     freeze = ("<script>setTimeout(function(){try{network.setOptions({physics:false});"
-              "network.fit();}catch(e){}},2600);</script>")
+              "network.fit({animation:false});"
+              f"network.moveTo({{scale:network.getScale()*{fit_scale},animation:false}});"
+              "}catch(e){}},2600);</script>")
     html = html.replace("</body>", freeze + "</body>")
     components.html(html, height=466, scrolling=False)
     return True
@@ -101,7 +123,7 @@ def render_kg(subgraph: dict) -> None:
     if not subgraph.get("nodes"):
         st.info("No knowledge-graph data.")
         return
-    if not _render_pyvis(subgraph):
+    if not _render_pyvis(subgraph, options=_KG_OPTIONS, fit_scale=0.72):
         st.json(subgraph)
         return
     groups = {n["group"] for n in subgraph["nodes"]}

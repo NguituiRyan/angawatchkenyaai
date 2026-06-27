@@ -19,10 +19,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # Streamlit Cloud hot-reloads app.py but NOT changed sub-modules — so a new app.py
 # can run against a stale cached module and crash until a manual reboot. Force-refresh
-# the PURE-PRESENTATION modules (no caches/connections) each run so signature changes
-# can never crash the deployed app between push and reboot.
+# the fast-changing presentation/logic modules each run so signature changes can never
+# crash the deployed app between push and reboot. The @st.cache_resource singletons live
+# in dashboard.services_cache (NOT refreshed), so Services / the Neo4j connection persist.
 for _m in [m for m in list(sys.modules)
-           if m == "dashboard.theme" or m.startswith("dashboard.components")]:
+           if m in ("dashboard.theme", "dashboard.state")
+           or m.startswith("dashboard.components")]:
     del sys.modules[_m]
 
 from dashboard.components.graph_view import render_graph, render_kg  # noqa: E402

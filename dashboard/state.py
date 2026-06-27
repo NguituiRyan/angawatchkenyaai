@@ -6,37 +6,16 @@ surfaces behave identically.
 """
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
-import streamlit as st
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-
-def _load_secrets_into_env() -> None:
-    """Copy flat Streamlit secrets (NEO4J_URI, OPENROUTER_API_KEY, ...) into env."""
-    try:
-        for key, value in st.secrets.items():
-            if isinstance(value, (str, int, float, bool)) and not os.environ.get(key):
-                os.environ[key] = str(value)
-    except Exception:  # noqa: BLE001  (no secrets file -> fine, run as mock)
-        pass
-
-
-@st.cache_resource(show_spinner=False)
-def _build():
-    _load_secrets_into_env()
-    from config import get_settings
-    get_settings.cache_clear()
-    from services import build_services
-    settings = get_settings()
-    return build_services(settings)
-
-
-def get_services():
-    return _build()
+# The @st.cache_resource singletons live in a STABLE module so they survive app.py's
+# hot-reload force-refresh of this module (signature changes here must never crash the
+# deployed app, and must never rebuild the cached Services / Neo4j connection).
+from dashboard.services_cache import (_masumi_client,  # noqa: E402,F401
+                                      get_services)
 
 
 def inject_and_run(services, gh_id: str, ticks: int = 9) -> list[dict]:
@@ -85,12 +64,6 @@ def coop_triage(services, farms: list[tuple]) -> list[dict]:
         out.append({"farmer_id": farmer_id, "gh_id": gh_id, "county": county, "report": rep})
     out.sort(key=lambda x: x["report"].priority_rank)
     return out
-
-
-@st.cache_resource(show_spinner=False)
-def _masumi_client(_settings):
-    from masumi_integration.client import build_masumi_client
-    return build_masumi_client(_settings)
 
 
 def masumi_round_trip(services, report):

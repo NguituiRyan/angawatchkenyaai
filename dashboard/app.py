@@ -40,12 +40,17 @@ with st.sidebar:
     gh_id, county = FARMERS[farmer_id]
     st.markdown(f"<span class='aw-hash'>greenhouse {gh_id} · {county}</span>", unsafe_allow_html=True)
     st.divider()
+    _mstat = settings.masumi_status()
+    _mlabel = {"real": "Masumi · real preprod",
+               "hybrid": "Masumi · on-chain proof ✓",
+               "mock": "Masumi · mock"}[_mstat]
+    _mpill = theme.pill("real" if _mstat in ("real", "hybrid") else "mock", _mlabel)
     st.markdown(
         f"**Live status**<br>"
         f"{theme.pill(services.store.mode,'Graph · '+services.store.mode)}<br>"
         f"{theme.pill(services.channel.mode,'Alerts · '+services.channel.mode)}<br>"
         f"{theme.pill(settings.llm_mode(),'LLM · '+settings.llm_mode())}<br>"
-        f"{theme.pill(settings.masumi_mode(),'Masumi · '+settings.masumi_mode())}",
+        f"{_mpill}",
         unsafe_allow_html=True)
     st.divider()
     if st.button("↺ Reset demo", use_container_width=True, key="reset"):

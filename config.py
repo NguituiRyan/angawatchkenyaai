@@ -100,6 +100,14 @@ class Settings(BaseSettings):
             return "real"
         return "mock"
 
+    def masumi_status(self) -> str:
+        """real = live escrow; hybrid = simulated round-trip + REAL on-chain proof; mock."""
+        if self.masumi_mode() == "real":
+            return "real"
+        if self.MASUMI_PRERECORDED_TX:
+            return "hybrid"
+        return "mock"
+
     def sokosumi_mode(self) -> str:
         return "live" if self.SOKOSUMI_API_KEY else "mock"
 

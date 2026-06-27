@@ -29,8 +29,27 @@ def _load_secrets_into_env() -> None:
         pass
 
 
+# The cached Services holds the Neo4j connection so it can't be hot-refreshed — but that
+# means a SIGNATURE change to a Services method (e.g. tick_and_ingest gaining a param) would
+# crash against the stale instance until a manual reboot. To self-heal: key the cache on a
+# hash of the services-layer source, so the Services rebuilds automatically when that code
+# changes, and persists (one build) otherwise.
+def _src_version() -> str:
+    import hashlib
+    root = Path(__file__).resolve().parents[1]
+    h = hashlib.sha256()
+    for rel in ("services.py", "config.py", "graph/store.py", "graph/seed.py",
+                "graph/memory_store.py", "risk/engine.py", "sim/generator.py",
+                "alerts/dispatcher.py"):
+        try:
+            h.update((root / rel).read_bytes())
+        except Exception:  # noqa: BLE001
+            pass
+    return h.hexdigest()[:12]
+
+
 @st.cache_resource(show_spinner=False)
-def _build():
+def _build(_version: str):
     _load_secrets_into_env()
     from config import get_settings
     get_settings.cache_clear()
@@ -40,7 +59,7 @@ def _build():
 
 
 def get_services():
-    return _build()
+    return _build(_src_version())
 
 
 def _masumi_client(settings):

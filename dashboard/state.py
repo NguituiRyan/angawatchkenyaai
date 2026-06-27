@@ -24,7 +24,11 @@ def inject_and_run(services, gh_id: str, ticks: int = 9, lang: str = "en") -> li
     services.inject(gh_id, "late_blight", ticks=ticks + 2)
     out = []
     for _ in range(ticks):
-        res = services.tick_and_ingest(gh_id, lang=lang)
+        try:
+            res = services.tick_and_ingest(gh_id, lang=lang)
+        except TypeError:
+            # stale cached Services (built before the lang param) — reboot to apply language
+            res = services.tick_and_ingest(gh_id)
         out.append(res)
         if res.get("alert") and res["alert"]["level"] == "HIGH":
             break

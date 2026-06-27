@@ -25,13 +25,14 @@ for _m in [m for m in list(sys.modules)
            if m == "dashboard.theme" or m.startswith("dashboard.components")]:
     del sys.modules[_m]
 
-from dashboard.components.graph_view import render_graph          # noqa: E402
+from dashboard.components.graph_view import render_graph, render_kg  # noqa: E402
 from dashboard.components.masumi_panel import render_masumi       # noqa: E402
 from dashboard.components.score_card import render_score_card     # noqa: E402
-from dashboard.state import (advisory_answer, assess, calm_ticks,  # noqa: E402
+from dashboard.state import (advisory_answer, agronomist_diagnose,  # noqa: E402
+                             agronomist_explain, assess, calm_ticks,
                              classify_leaf, get_services, inject_and_run,
-                             masumi_round_trip, offline_box, quick_score,
-                             set_language, sms_reply)
+                             kg_subgraph, masumi_round_trip, offline_box,
+                             quick_score, set_language, sms_reply)
 from dashboard import theme                                       # noqa: E402
 
 st.set_page_config(page_title="Angawatch — Greenhouse Monitoring", page_icon="🌱", layout="wide")
@@ -96,9 +97,9 @@ risk_kind = engine_risk.kind if engine_risk else "—"
 teaser = quick_score(services, farmer_id)
 
 # ---- primary navigation: big, high, stunning (the main thing) --------------
-tab_farm, tab_credit, tab_advice, tab_phone = st.tabs(
-    ["🌡️  Farm record & live feed", "🏦  Credit assessment", "🍃  Leaf scan & advisor",
-     "📱  Feature phone & offline"])
+tab_farm, tab_doctor, tab_credit, tab_advice, tab_phone = st.tabs(
+    ["🌡️  Farm record & live feed", "🧠  Crop doctor (GraphRAG)", "🏦  Credit assessment",
+     "🍃  Leaf scan & advisor", "📱  Feature phone & offline"])
 
 # ============================================================ FARM TAB ======
 with tab_farm:
@@ -162,6 +163,94 @@ with tab_farm:
             st.caption("Recent alerts on record")
             adf = pd.DataFrame(alerts)[["ts", "kind", "level", "delivery"]]
             st.dataframe(adf, hide_index=True, use_container_width=True, height=150)
+
+# ====================================================== CROP DOCTOR TAB =====
+with tab_doctor:
+    theme.section("Crop doctor — GraphRAG over the agronomic knowledge graph",
+                  "“Why was I warned, and what do I do?” The agent TRAVERSES the graph: "
+                  "sensor readings → microclimate conditions → disease → pathogen → ranked "
+                  "treatments — multi-hop reasoning, not a flat lookup. It shows the path it walked.",
+                  "spark")
+    bcol1, bcol2, _ = st.columns([1, 1, 1])
+    run_explain = bcol1.button("🔎 Explain my latest alert", type="primary", key="kg_explain",
+                               use_container_width=True)
+    run_diag = bcol2.button("🩺 Diagnose current conditions", key="kg_diag_btn",
+                            use_container_width=True)
+
+    if run_explain or st.session_state.get("kg_for") != gh_id:
+        st.session_state.kg_exp = agronomist_explain(services, gh_id)
+        st.session_state.kg_for = gh_id
+    exp = st.session_state.get("kg_exp")
+
+    if not exp:
+        st.info("No alerts on record yet for this greenhouse — stage a blight event in the "
+                "**Farm record** tab, then come back.")
+    else:
+        d = exp.get("disease") or {}
+        tgt = exp.get("target", {})
+        hops = [{"kind": "Alert", "value": f"{exp['alert'].get('kind')} · {exp['alert'].get('level')}",
+                 "rel": "FOR_DISEASE"},
+                {"kind": "Disease" if tgt.get("label") == "Disease" else "Pest",
+                 "value": d.get("name", "—"), "cls": "dis",
+                 "rel": "CAUSED_BY" if exp.get("pathogen") else "CONTROLLED_BY"}]
+        if exp.get("pathogen"):
+            hops.append({"kind": "Pathogen", "value": exp["pathogen"], "cls": "path",
+                         "rel": "CONTROLLED_BY"})
+        hops.append({"kind": "Treatment", "value": f"{len(exp.get('treatments', []))} ranked options"})
+        st.markdown(theme.kg_path(hops), unsafe_allow_html=True)
+
+        if exp.get("conditions"):
+            chips = " ".join(
+                f'<span class="aw-tag phi">{c}</span>' for c in exp["conditions"])
+            n_r = len(exp.get("trigger_readings") or [])
+            st.markdown(
+                f'<div style="margin:4px 0 10px"><span style="color:var(--muted);font-size:.8rem">'
+                f'graph evidence — favoured by {n_r} linked sensor reading(s): </span>{chips}</div>',
+                unsafe_allow_html=True)
+
+        st.markdown(theme.pill(exp.get("narration_mode", "mock"),
+                               f"agronomist narration · {exp.get('narration_mode','mock')} · "
+                               f"graph backend {exp.get('backend','memory')}"),
+                    unsafe_allow_html=True)
+        _narr = (exp.get("narrative", "") or "").replace("**", "").replace("*", "")
+        st.markdown(f"<div class='aw-card' style='margin:8px 0 14px'>{_narr}</div>",
+                    unsafe_allow_html=True)
+
+        tcol, gcol = st.columns([1, 1], gap="large")
+        with tcol:
+            theme.section("Recommended actions — ranked",
+                          "By efficacy → pre-harvest interval → cost. Cultural/cheap first.", "check")
+            st.markdown(theme.treatment_list(exp.get("treatments", []), n=6), unsafe_allow_html=True)
+        with gcol:
+            theme.section("The path on the graph",
+                          "The disease and its neighbours in the knowledge graph.", "shield")
+            if tgt.get("label") == "Disease" and tgt.get("id"):
+                render_kg(kg_subgraph(services, tgt["id"]))
+            else:
+                st.caption("Pest target — see the ranked controls on the left.")
+
+        with st.expander("🧠 Shows thinking — the Cypher traversal the agent ran"):
+            st.code(exp.get("cypher", ""), language="cypher")
+            st.caption("This walks Alert→Disease→Pathogen and Disease←Treatment in one query — "
+                       "the kind of multi-hop join a graph does natively and a flat table can't.")
+
+    if run_diag:
+        st.session_state.kg_diag = agronomist_diagnose(services, gh_id)
+    diag = st.session_state.get("kg_diag")
+    if diag is not None and (run_diag or st.session_state.get("kg_diag_open")):
+        st.session_state.kg_diag_open = True
+        st.divider()
+        theme.section("Diagnose from current conditions",
+                      "Latest readings → indicated microclimate conditions → likely diseases.", "scan")
+        cds = " ".join(f'<span class="aw-tag phi">{c}</span>' for c in diag.get("conditions", [])) \
+            or "<span style='color:var(--muted)'>no risk conditions indicated right now</span>"
+        st.markdown(f'<div style="margin-bottom:8px"><b>Indicated conditions:</b> {cds}</div>',
+                    unsafe_allow_html=True)
+        for dz in diag.get("diseases", [])[:4]:
+            st.markdown(f"- **{dz['name']}** — via {', '.join(dz['via'])}")
+        if diag.get("treatments"):
+            st.caption(f"Top control for {diag['diseases'][0]['name']}:")
+            st.markdown(theme.treatment_list(diag["treatments"], n=3), unsafe_allow_html=True)
 
 # ========================================================== CREDIT TAB ======
 with tab_credit:
@@ -277,12 +366,14 @@ with tab_phone:
 # ---------------------------------------------- guided progress + footer ----
 _run = st.session_state.get("last_run")
 _has_alert = bool(_run and any(r.get("alert") for r in _run))
+_has_doctor = bool(st.session_state.get("kg_exp"))
 _has_assess = bool(st.session_state.get("assessment"))
 _has_masumi = bool(st.session_state.get("masumi"))
 _flow = [
     ("Verified farm record", "done"),
-    ("Early blight alert", "done" if _has_alert else "active"),
-    ("Explainable credit score", "done" if _has_assess else ("active" if _has_alert else "")),
+    ("Blight alert fires", "done" if _has_alert else "active"),
+    ("GraphRAG crop diagnosis", "done" if _has_doctor else ("active" if _has_alert else "")),
+    ("Explainable credit score", "done" if _has_assess else ("active" if _has_doctor else "")),
     ("On-chain Masumi audit", "done" if _has_masumi else ("active" if _has_assess else "")),
 ]
 with sb_flow:

@@ -292,6 +292,36 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
 }
 .aw-step .tx a, .aw-footer a{text-decoration:underline;}   /* links not colour-only */
 @media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important;}}
+
+/* GraphRAG traversal path — the multi-hop chain the agent walked */
+.aw-kgpath{display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin:6px 0 4px;}
+.aw-hop{display:flex; flex-direction:column; gap:2px; background:var(--surface);
+  border:1px solid var(--border); border-left:4px solid var(--brand);
+  border-radius:12px; padding:9px 13px; min-width:120px; box-shadow:var(--shadow-sm);}
+.aw-hop .hk{font-size:.62rem; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--faint); font-family:'JetBrains Mono',monospace;}
+.aw-hop .hv{font-size:.92rem; font-weight:700; color:var(--fg);}
+.aw-hop.dis{border-left-color:var(--danger);}
+.aw-hop.cond{border-left-color:#0E9FB5;}
+.aw-hop.path{border-left-color:#B4456B;}
+.aw-arrow{display:flex; align-items:center; color:var(--brand-strong); font-weight:800;
+  font-size:1.1rem;}
+.aw-rel{align-self:center; font-family:'JetBrains Mono',monospace; font-size:.6rem;
+  color:var(--brand-ink); background:var(--brand-soft); border-radius:6px; padding:2px 6px;}
+/* ranked treatment cards */
+.aw-treat{display:flex; align-items:center; gap:10px; background:var(--surface);
+  border:1px solid var(--border); border-radius:13px; padding:10px 13px; margin-bottom:8px;}
+.aw-treat .rank{font-family:'Plus Jakarta Sans'; font-weight:800; font-size:1rem;
+  color:var(--brand-strong); width:22px; text-align:center;}
+.aw-treat .body{flex:1; min-width:0;}
+.aw-treat .nm{font-weight:700; color:var(--fg); font-size:.95rem;}
+.aw-treat .mt{font-size:.72rem; color:var(--muted); margin-top:1px;}
+.aw-treat .tags{display:flex; flex-wrap:wrap; gap:5px; margin-top:5px;}
+.aw-tag{font-size:.66rem; font-family:'JetBrains Mono',monospace; border-radius:6px;
+  padding:2px 7px; background:#F4F7F0; color:var(--muted); border:1px solid var(--border);}
+.aw-tag.tt{background:var(--brand-soft); color:var(--brand-ink); border-color:#CDE9BD;}
+.aw-tag.warn{background:var(--danger-soft); color:#B42318; border-color:#F4C2C2;}
+.aw-tag.phi{background:#EAF3FF; color:#1D4ED8; border-color:#CFE0FB;}
 </style>
 """
 
@@ -376,6 +406,44 @@ def section(title: str, subtitle: str = "", ic: str = "activity") -> None:
         f'<div><h3>{html.escape(title)}</h3>'
         + (f'<p>{html.escape(subtitle)}</p>' if subtitle else "")
         + '</div></div>', unsafe_allow_html=True)
+
+
+def kg_path(hops: list[dict]) -> str:
+    """Render the multi-hop graph path the agent walked.
+    hops: [{kind, value, cls?, rel?}] — rel is the relationship label to the NEXT hop."""
+    parts = []
+    for i, h in enumerate(hops):
+        cls = h.get("cls", "")
+        parts.append(
+            f'<div class="aw-hop {cls}"><span class="hk">{html.escape(h["kind"])}</span>'
+            f'<span class="hv">{html.escape(str(h["value"]))}</span></div>')
+        if i < len(hops) - 1:
+            rel = hops[i].get("rel", "")
+            arrow = f'<span class="aw-rel">{html.escape(rel)}</span>' if rel else ""
+            parts.append(f'<div class="aw-arrow">{arrow}→</div>')
+    return f'<div class="aw-kgpath">{"".join(parts)}</div>'
+
+
+def treatment_list(treatments: list[dict], n: int = 6) -> str:
+    rows = ""
+    for i, t in enumerate(treatments[:n], 1):
+        eff = t.get("edge_efficacy") or t.get("efficacy") or "—"
+        phi = t.get("phi_days")
+        cost = t.get("cost_kes")
+        tags = [f'<span class="aw-tag tt">{html.escape(str(t.get("type","")))}</span>']
+        if t.get("active") and t["active"] != "-":
+            tags.append(f'<span class="aw-tag">{html.escape(str(t["active"]))}</span>')
+        tags.append(f'<span class="aw-tag">efficacy {html.escape(str(eff))}</span>')
+        if phi is not None:
+            tags.append(f'<span class="aw-tag phi">PHI {phi}d</span>')
+        if cost is not None:
+            tags.append(f'<span class="aw-tag">~KES {cost:,}</span>')
+        if t.get("harmful_to"):
+            tags.append(f'<span class="aw-tag warn">⚠ harms {html.escape(", ".join(t["harmful_to"]))}</span>')
+        rows += (f'<div class="aw-treat"><div class="rank">{i}</div><div class="body">'
+                 f'<div class="nm">{html.escape(str(t.get("name","")))}</div>'
+                 f'<div class="tags">{"".join(tags)}</div></div></div>')
+    return rows
 
 
 def kpis(items: list[dict]) -> None:

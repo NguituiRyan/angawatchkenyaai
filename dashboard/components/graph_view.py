@@ -14,6 +14,10 @@ GROUP = {
     "Farmer": ("#54B435", 30), "Greenhouse": ("#3B82F6", 26), "Season": ("#8B5CF6", 20),
     "Harvest": ("#E8A317", 20), "Alert": ("#E5484D", 22), "Reading": ("#0E9FB5", 16),
     "Action": ("#6BB02E", 18), "Cooperative": ("#6366F1", 22),
+    # agronomic knowledge-graph ontology
+    "Disease": ("#E5484D", 28), "Pathogen": ("#B4456B", 18), "Condition": ("#0E9FB5", 20),
+    "Symptom": ("#E8A317", 16), "Pest": ("#C2410C", 22), "Treatment": ("#3F9E2A", 22),
+    "Beneficial": ("#8B5CF6", 16), "Crop": ("#54B435", 24), "GrowthStage": ("#64748B", 16),
 }
 
 _OPTIONS = json.dumps({
@@ -92,10 +96,28 @@ def render_graph(store, farmer_id: str) -> None:
         st.json(data)
 
 
-def _legend() -> None:
+def render_kg(subgraph: dict) -> None:
+    """Render an agronomic knowledge-graph subgraph (disease + neighbours)."""
+    if not subgraph.get("nodes"):
+        st.info("No knowledge-graph data.")
+        return
+    if not _render_pyvis(subgraph):
+        st.json(subgraph)
+        return
+    groups = {n["group"] for n in subgraph["nodes"]}
     chips = "".join(
         f'<span class="aw-pill" style="background:#F4F7F0;border:1px solid #E7ECE0;'
-        f'color:#6E7D70"><span class="dot" style="background:{c}"></span>{g}</span> '
-        for g, (c, _s) in GROUP.items())
+        f'color:#6E7D70"><span class="dot" style="background:{GROUP.get(g,("#94A3B8",))[0]}"></span>'
+        f'{g}</span> ' for g in sorted(groups))
+    st.markdown(f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-top:10px'>{chips}</div>",
+                unsafe_allow_html=True)
+
+
+def _legend() -> None:
+    show = ["Farmer", "Greenhouse", "Season", "Harvest", "Alert", "Reading", "Action", "Cooperative"]
+    chips = "".join(
+        f'<span class="aw-pill" style="background:#F4F7F0;border:1px solid #E7ECE0;'
+        f'color:#6E7D70"><span class="dot" style="background:{GROUP[g][0]}"></span>{g}</span> '
+        for g in show)
     st.markdown(f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-top:10px'>{chips}</div>",
                 unsafe_allow_html=True)

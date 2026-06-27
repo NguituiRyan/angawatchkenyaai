@@ -100,6 +100,26 @@ def advisory_answer(services, farmer_id: str, question: str) -> dict:
     return answer(services.settings, services.store, farmer_id, question)
 
 
+def agronomist_explain(services, gh_id: str):
+    """GraphRAG: explain the greenhouse's latest alert by traversing the KG."""
+    from agents.agronomist import AgronomistAgent
+    alerts = services.store.list_alerts(gh_id, limit=1)
+    if not alerts:
+        return None
+    return AgronomistAgent(services.settings).explain_alert(services.store, alerts[0]["id"])
+
+
+def agronomist_diagnose(services, gh_id: str) -> dict:
+    """GraphRAG: diagnose likely diseases from the greenhouse's current conditions."""
+    from agents.agronomist import AgronomistAgent
+    return AgronomistAgent(services.settings).diagnose(services.store, gh_id)
+
+
+def kg_subgraph(services, disease_id: str) -> dict:
+    from graph.kg import kg_subgraph as _kg
+    return _kg(services.store, disease_id)
+
+
 def set_language(services, farmer_id: str, lang: str) -> None:
     # getattr-guard so a Streamlit hot-reload with a cached old store module
     # (no update_farmer yet) degrades gracefully instead of crashing the app

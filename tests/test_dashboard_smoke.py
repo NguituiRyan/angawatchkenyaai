@@ -58,3 +58,12 @@ def test_feature_phone_sms_and_box():
     assert not at.exception, at.exception
     at.button(key="sms_LOAN").click().run()
     assert not at.exception, at.exception
+
+
+def test_crop_doctor_graphrag():
+    at = _run()
+    # the Crop-doctor tab auto-runs explain on load; exercise both buttons too
+    at.button(key="kg_explain").click().run()
+    assert not at.exception, at.exception
+    at.button(key="kg_diag_btn").click().run()
+    assert not at.exception, at.exception

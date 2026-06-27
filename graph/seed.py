@@ -28,4 +28,9 @@ def load_dataset() -> dict:
 def ensure_seeded(store, data: dict | None = None) -> dict:
     data = data or load_dataset()
     store.load_seed(data)
+    try:
+        from graph.kg import seed_agronomy
+        seed_agronomy(store)   # add the agronomic knowledge graph + link operational data
+    except Exception as exc:  # noqa: BLE001
+        log.warning("agronomy KG seed skipped: %s", exc)
     return data

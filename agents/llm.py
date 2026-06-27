@@ -8,9 +8,16 @@ It is forbidden from inventing figures — numbers are passed in as data.
 """
 from __future__ import annotations
 
+import re
+
 from logging_setup import get_logger
 
 log = get_logger("agents.llm")
+
+
+def clean_llm_text(text: str | None) -> str:
+    """Strip special tokens some free models leak (e.g. Gemma's <pad>/<eos>)."""
+    return re.sub(r"</?(pad|eos|bos|s|end_of_turn)>", "", (text or "")).strip()
 
 
 def build_crewai_llm(settings):
@@ -70,7 +77,7 @@ def openrouter_narrative(assessment, subgraph, settings) -> str | None:
                        "content": PROMPT.format(facts=_facts(assessment, subgraph))}],
             temperature=0.3, max_tokens=400,
         )
-        return resp.choices[0].message.content.strip()
+        return clean_llm_text(resp.choices[0].message.content) or None
     except Exception as exc:  # noqa: BLE001
         log.warning("OpenRouter narration failed (%s) — using template", exc)
         return None

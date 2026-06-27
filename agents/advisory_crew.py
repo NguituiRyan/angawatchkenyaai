@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 
-from agents.llm import _openrouter_client
+from agents.llm import _openrouter_client, clean_llm_text
 from logging_setup import get_logger
 
 log = get_logger("agents.advisory")
@@ -72,7 +72,7 @@ def answer(settings, store, farmer_id: str, question: str) -> dict:
                     model=model, temperature=0.4, max_tokens=350,
                     messages=[{"role": "user", "content": PROMPT.format(
                         record=json.dumps(sub, default=str), question=question)}])
-                return {"answer": resp.choices[0].message.content.strip(),
+                return {"answer": clean_llm_text(resp.choices[0].message.content),
                         "mode": "live", "grounded_on": farmer_id}
             except Exception as exc:  # noqa: BLE001
                 log.warning("advisory live failed (%s) — template", exc)

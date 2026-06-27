@@ -9,6 +9,7 @@ import os
 os.environ["GRAPH_BACKEND"] = "memory"
 os.environ["VISION_MODE"] = "mock"
 os.environ["MASUMI_MODE"] = "mock"
+os.environ["LLM_MODE"] = "mock"
 
 import pytest
 

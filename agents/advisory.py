@@ -17,10 +17,31 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 from agents.agronomist import AgronomistAgent
+from graph import agronomy as A
 from graph import kg
 from logging_setup import get_logger
 
 log = get_logger("agents.advisory")
+
+# microclimate condition -> its numeric rule (the sensor threshold that fires it)
+_COND_RULE = {c["name"]: c.get("rule", "") for c in A.NODES["Condition"]}
+
+
+def _constraint_reason(diagnosis: str, risk_level: str, conditions: list) -> str:
+    """The sensor -> constraint -> treatment-window reasoning (ties live Reading->Condition
+    into WHEN to act). This is the link published agri-GraphRAG flags as 'future work'."""
+    if not diagnosis or diagnosis.startswith("No active"):
+        return ("Sensors are not currently in any disease-favouring band — keep ventilation up "
+                "overnight and re-check after the next humid spell.")
+    top = conditions[0] if conditions else None
+    rule = _COND_RULE.get(top, "")
+    lvl = {"HIGH": "ACTIVE now", "MED": "building"}.get(risk_level, "low")
+    if not top:
+        return f"{diagnosis} risk is {lvl}. Confirm in-field, then act on the ranked plan."
+    return (f"Sensor trigger: live readings indicate '{top}'"
+            + (f" ({rule})" if rule else "")
+            + f" — the microclimate that favours {diagnosis}. Risk is {lvl}, so the treatment "
+            "window is open: act before lesions establish (cultural/protectant controls work best early).")
 
 DEFAULT_COOP = {"id": "coop-1", "name": "Rift Valley Fresh Co-op", "type": "cooperative"}
 
@@ -55,6 +76,7 @@ class AdvisoryReport:
     confidence: dict
     conditions: list
     trigger_readings: list
+    trigger_reason: str
     recommended_actions: list
     narrative: str
     narration_mode: str
@@ -134,13 +156,15 @@ class AdvisoryAgent:
             narrative, nmode, backend = "", "mock", store.mode
 
         prio, rank = PRIORITY.get(rl, PRIORITY["LOW"])
+        dx = diagnosis or "No active disease detected"
         rep = AdvisoryReport(
             greenhouse_id=gh_id, farm_id=farm_id, requested_by=requested_by,
             generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             risk_level=rl, priority=prio, priority_rank=rank,
-            diagnosis=diagnosis or "No active disease detected",
+            diagnosis=dx,
             pathogen=pathogen, confidence=_confidence(rl, diagnosis, len(trig)),
-            conditions=conditions, trigger_readings=trig, recommended_actions=actions,
+            conditions=conditions, trigger_readings=trig,
+            trigger_reason=_constraint_reason(dx, rl, conditions), recommended_actions=actions,
             narrative=narrative or self._fallback(diagnosis, conditions, actions),
             narration_mode=nmode, backend=backend, limits=LIMITS)
         rep.compute_hash()

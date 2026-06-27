@@ -35,6 +35,15 @@ def render_advisory_report(r) -> None:
          "sub": f"graph backend {r.backend}"},
     ])
 
+    if getattr(r, "trigger_reason", ""):
+        st.markdown(
+            f'<div style="margin:8px 0 6px;padding:10px 13px;border-radius:11px;'
+            f'background:var(--surface-2);border-left:3px solid {tone}">'
+            f'<span style="font-size:.7rem;color:var(--faint);font-family:JetBrains Mono,monospace">'
+            f'SENSOR → CONSTRAINT → ACTION</span><br>'
+            f'<span style="font-size:.86rem;color:var(--fg)">{html.escape(r.trigger_reason)}</span></div>',
+            unsafe_allow_html=True)
+
     if r.conditions:
         chips = " ".join(f'<span class="aw-tag phi">{html.escape(c)}</span>' for c in r.conditions)
         n_r = len(r.trigger_readings or [])

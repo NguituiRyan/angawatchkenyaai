@@ -159,7 +159,9 @@ def render_my_greenhouse(gh_id: str, county: str, farmer_id: str) -> None:
         st.session_state.last_run = inject_and_run(services, gh_id, lang=_alang)
 
     run = st.session_state.get("last_run")
-    fired = next((r["alert"] for r in (run or []) if r.get("alert")), None)
+    _alerts = [r["alert"] for r in (run or []) if r.get("alert")]
+    _ord = {"LOW": 0, "MED": 1, "HIGH": 2}
+    fired = max(_alerts, key=lambda a: _ord.get(a["level"], 0)) if _alerts else None
     if fired:
         st.caption("📲 The farmer instantly receives this WhatsApp/SMS — simple + what to do:")
         theme.alert_card(fired["level"], fired["kind"], fired["message"],

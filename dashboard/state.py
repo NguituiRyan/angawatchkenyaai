@@ -20,7 +20,14 @@ from dashboard.services_cache import (_masumi_client,  # noqa: E402,F401
 
 def inject_and_run(services, gh_id: str, ticks: int = 9, lang: str = "en") -> list[dict]:
     """Inject a blight event then stream ticks; return the per-tick risk results.
-    The fired alert carries a simple, action-first farmer message (in `lang`)."""
+    The fired alert carries a simple, action-first farmer message (in `lang`).
+
+    Each press starts a FRESH episode (clears the alert dedup), so the alert — and its
+    real SMS/WhatsApp — fires on EVERY press, not just the first in a session."""
+    try:
+        services._episode.pop(gh_id, None)
+    except Exception:  # noqa: BLE001  (stale cached Services without _episode)
+        pass
     services.inject(gh_id, "late_blight", ticks=ticks + 2)
     out = []
     for _ in range(ticks):
